@@ -1,0 +1,240 @@
+# GitHub Actions CI for steamdeck-webdev-template
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   NX_CLOUD_ACCESS_TOKEN  — enables Nx Cloud remote cache + Self-Healing CI.
+#                            Without it, nx-cloud calls no-op with a warning
+#                            (pipeline still runs, no caching).
+#
+# Notes on GitHub equivalents for the old GitLab pipeline:
+#   - CI_PIPELINE_SOURCE == merge_request_event → github.event_name == 'pull_request'
+#   - CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH   → github.ref == 'refs/heads/main'
+#   - CI_MERGE_REQUEST_DIFF_BASE_SHA            → github.event.pull_request.base.sha
+#   - CI_MERGE_REQUEST_TITLE                    → github.event.pull_request.title
+#   - Security/SAST template                    → .github/workflows/codeql.yml
+#   - Security/Secret-Detection template        → GitHub-native Secret Scanning (repo setting)
+#   - Security/Dependency-Scanning template     → Dependabot Alerts (repo setting) + Renovate
+
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+
+# Cancel in-progress runs for the same PR / branch when new commits land.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    HUSKY: '0'
+    NX_BRANCH: ${{ github.head_ref || github.ref_name }}
+    NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+jobs:
+    # ---------- quality ----------
+
+    check:
+        name: check (format / lint / typecheck / test)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+
+            # --- Diagnostic: dumps git identity and GitHub context so future
+            # debugging of Nx Cloud attribution has the data inline. Safe to
+            # keep — adds ~1s to the job and no secrets are printed.
+            - name: Diagnostic (git + github context)
+              run: |
+                  echo "=== git identity check ==="
+                  git --version || echo "git not installed"
+                  git rev-parse HEAD || echo "no HEAD"
+                  git log -1 --pretty=fuller || echo "git log failed"
+                  echo "=== GITHUB_* context ==="
+                  echo "github.event_name=${{ github.event_name }}"
+                  echo "github.ref=${{ github.ref }}"
+                  echo "github.sha=${{ github.sha }}"
+                  echo "base_sha=${{ github.event.pull_request.base.sha }}"
+                  echo "head_sha=${{ github.event.pull_request.head.sha }}"
+                  echo "=== end diagnostic ==="
+
+            - name: Start Nx Cloud CI run
+              run: npx nx-cloud start-ci-run --no-distribution
+
+            - run: npm run format:check
+
+            - name: nx affected — lint / typecheck / test
+              run: |
+                  BASE="${{ github.event.pull_request.base.sha }}"
+                  if [ -n "$BASE" ]; then
+                    npx nx affected -t lint typecheck test --parallel=3 --base="$BASE" --head=HEAD
+                  else
+                    npx nx affected -t lint typecheck test --parallel=3 --base=HEAD~1
+                  fi
+
+            - name: Self-Healing CI (on failure)
+              if: failure()
+              run: npx nx fix-ci
+
+    commitlint:
+        name: commitlint (PR title)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - name: Lint PR title
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: echo "$PR_TITLE" | npx --yes commitlint
+
+    npm-audit:
+        name: npm audit (high, prod-only)
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - run: npm audit --audit-level=high --omit=dev
+
+    attribution-guard:
+        name: attribution guard
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Enforce CHANGELOG + attribution log updates
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+              run: |
+                  CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+                  echo "$CHANGED"
+                  if echo "$CHANGED" | grep -qE '^(apps|libs)/'; then
+                    if ! echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
+                      echo "ERROR: apps/ or libs/ changed but CHANGELOG.md was not updated." >&2
+                      exit 1
+                    fi
+                    if ! echo "$CHANGED" | grep -q '^\.ai-attribution\.jsonl$'; then
+                      echo "WARNING: apps/ or libs/ changed but .ai-attribution.jsonl was not appended to." >&2
+                    fi
+                  fi
+
+    # ---------- build ----------
+
+    build:
+        name: build
+        needs: check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - name: nx affected — build
+              run: |
+                  BASE="${{ github.event.pull_request.base.sha }}"
+                  if [ -n "$BASE" ]; then
+                    npx nx affected -t build --parallel=3 --base="$BASE" --head=HEAD
+                  else
+                    npx nx affected -t build --parallel=3 --base=HEAD~1
+                  fi
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist
+                  path: dist
+                  retention-days: 7
+
+    storybook-build:
+        name: storybook build
+        needs: check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - run: npx nx run frontend:build-storybook
+
+    # ---------- e2e ----------
+
+    e2e:
+        name: e2e
+        needs: build
+        runs-on: ubuntu-latest
+        container:
+            image: mcr.microsoft.com/playwright:v1.55.0-jammy
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - name: nx affected — e2e
+              run: |
+                  BASE="${{ github.event.pull_request.base.sha }}"
+                  if [ -n "$BASE" ]; then
+                    npx nx affected -t e2e --parallel=1 --base="$BASE" --head=HEAD
+                  else
+                    npx nx affected -t e2e --parallel=1 --base=HEAD~1
+                  fi
+            - uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: playwright-reports
+                  path: |
+                      apps/frontend-e2e/playwright-report
+                      apps/backend-e2e/playwright-report
+                  retention-days: 7
+
+    # ---------- report ----------
+
+    lighthouse:
+        name: lighthouse
+        needs: build
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: actions/download-artifact@v4
+              with:
+                  name: dist
+                  path: dist
+            - run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: lighthouseci
+                  path: .lighthouseci
+                  retention-days: 14

@@ -4,7 +4,7 @@
 
 If you believe you've found a security vulnerability in this project, please **do not** open a public issue. Report it privately so a fix can be prepared before the details are public.
 
-- **Private report:** open a confidential issue on the GitLab repository (`Issues → New issue → Confidential`).
+- **Private report:** use GitHub's **Private vulnerability reporting** on this repository (`Security → Advisories → Report a vulnerability`). Enable it under `Settings → Code security → Private vulnerability reporting` if it's not already on.
 - **Expected response time:** the maintainer aims to acknowledge within 72 hours.
 
 Please include:

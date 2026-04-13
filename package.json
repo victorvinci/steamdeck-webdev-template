@@ -4,7 +4,7 @@
     "private": true,
     "author": {
         "name": "Victor Vinci",
-        "url": "https://gitlab.com/victorvinci"
+        "url": "https://github.com/victorvinci"
     },
     "engines": {
         "node": ">=20.12.0",

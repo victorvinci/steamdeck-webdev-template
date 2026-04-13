@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Ported CI from GitLab CI/CD to GitHub Actions.** `.gitlab-ci.yml` removed; `.github/workflows/ci.yml` now hosts the `check` / `commitlint` / `npm-audit` / `attribution-guard` / `build` / `storybook-build` / `e2e` / `lighthouse` jobs with equivalent triggers (`pull_request`, `push` to `main` / `develop`). `check` keeps the inline diagnostic block that dumps git + `GITHUB_*` context for Nx Cloud attribution debugging. `nx fix-ci` (Self-Healing CI) is invoked in the `check` job via an `if: failure()` step.
+- **Security scanning — GitHub-native replacements for the GitLab templates.** Added `.github/workflows/codeql.yml` (CodeQL JS/TS SAST, weekly schedule + PR/push triggers). GitLab's `Secret-Detection` (gitleaks) and `Dependency-Scanning` templates are replaced by GitHub-native Secret Scanning and Dependabot Alerts, which are enabled at the repo level and don't need a workflow file.
+- **`README.md` — CI / CD section rewritten** to reflect the new GitHub Actions jobs, CodeQL integration, repo-level security features, and the fact that `NX_CLOUD_ACCESS_TOKEN` is now an Actions secret (not a GitLab CI variable).
+- **`SECURITY.md`** — reporting path changed from GitLab confidential issues to GitHub's Private Vulnerability Reporting (`Security → Advisories → Report a vulnerability`).
+- **`package.json author.url`** switched from `https://gitlab.com/victorvinci` to `https://github.com/victorvinci`.
+
 ### Fixed
 
 - **`.gitlab-ci.yml` — restored missing jobs and fixed broken e2e image.** Re-added `commitlint`, `npm-audit`, `attribution-guard`, and `storybook-build` jobs that had gone missing during earlier edits, and corrected the `e2e` job image from the malformed `://microsoft.com` to `mcr.microsoft.com/playwright:v1.55.0-jammy`.

@@ -189,23 +189,24 @@ npx nx e2e backend-e2e         # backend e2e
 
 ## CI / CD
 
-GitLab CI is wired up in `.gitlab-ci.yml`. On every merge request:
+GitHub Actions is wired up in `.github/workflows/ci.yml`. On every pull request:
 
 - `check` runs `format:check` + `nx affected -t lint typecheck test`
 - `build` runs `nx affected -t build` and uploads `dist/` as an artifact
 - `storybook-build` ensures every story still compiles
 - `e2e` runs Playwright on the official Microsoft image
 - `lighthouse` runs LHCI against the built frontend (see `lighthouserc.json`)
-- `commitlint` enforces Conventional Commits on every commit in the MR + the MR title
-- `npm-audit` surfaces high-severity advisories (allow_failure)
-- `attribution-guard` fails the MR if `apps/` or `libs/` changed without a `CHANGELOG.md` update
-- GitLab's built-in **SAST**, **Secret Detection** (gitleaks), and **Dependency Scanning** templates run alongside the custom jobs
+- `commitlint` enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
+- `npm-audit` surfaces high-severity advisories (non-blocking)
+- `attribution-guard` fails the PR if `apps/` or `libs/` changed without a `CHANGELOG.md` update
+- **CodeQL** (`.github/workflows/codeql.yml`) runs GitHub's SAST on JS/TS, weekly + on every push and PR
+- **Secret Scanning** and **Dependabot Alerts** are enabled at the repo level (no workflow file needed)
 
 Pushes to `main` / `develop` run the non-affected (full) variants.
 
-Renovate is configured in `renovate.json` — enable it by turning on the **Renovate Bot** integration in GitLab (or run it as a scheduled CI job). Dependency updates arrive grouped by ecosystem so you don't drown in MRs.
+Renovate is configured in `renovate.json` — enable it by installing the **Renovate GitHub App** on the repo. Dependency updates arrive grouped by ecosystem so you don't drown in PRs.
 
-**One-time setup**: add `NX_CLOUD_ACCESS_TOKEN` as a masked CI/CD variable so Nx Cloud's remote cache works in pipelines. The token comes from your Nx Cloud workspace — `nxCloudId` in `nx.json` is already set.
+**One-time setup**: add `NX_CLOUD_ACCESS_TOKEN` as an Actions secret (Settings → Secrets and variables → Actions) so Nx Cloud's remote cache works in pipelines. The token comes from your Nx Cloud workspace — `nxCloudId` in `nx.json` points to it.
 
 ---
 
