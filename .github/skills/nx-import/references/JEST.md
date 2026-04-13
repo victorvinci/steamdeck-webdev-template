@@ -12,10 +12,10 @@ Jest-specific guidance for `nx import`. For the basic "Jest Preset Missing" fix 
 
 ```json
 {
-  "plugin": "@nx/jest/plugin",
-  "options": {
-    "targetName": "test"
-  }
+    "plugin": "@nx/jest/plugin",
+    "options": {
+        "targetName": "test"
+    }
 }
 ```
 
@@ -45,9 +45,9 @@ module.exports = { ...nxPreset };
 
 ```ts
 export default {
-  displayName: 'my-lib',
-  preset: '../../jest.preset.js',
-  // project-specific overrides
+    displayName: 'my-lib',
+    preset: '../../jest.preset.js',
+    // project-specific overrides
 };
 ```
 
@@ -100,18 +100,13 @@ Jest projects need a `tsconfig.spec.json` that includes test files:
 
 ```json
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "outDir": "../../dist/out-tsc",
-    "module": "commonjs",
-    "types": ["jest", "node"]
-  },
-  "include": [
-    "jest.config.ts",
-    "src/**/*.test.ts",
-    "src/**/*.spec.ts",
-    "src/**/*.d.ts"
-  ]
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "../../dist/out-tsc",
+        "module": "commonjs",
+        "types": ["jest", "node"]
+    },
+    "include": ["jest.config.ts", "src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.d.ts"]
 }
 ```
 
@@ -136,8 +131,8 @@ Both `@nx/jest/plugin` and `@nx/vite/plugin` (which infers Vitest targets) coexi
 
 ```json
 {
-  "plugin": "@nx/jest/plugin",
-  "options": { "targetName": "jest-test" }
+    "plugin": "@nx/jest/plugin",
+    "options": { "targetName": "jest-test" }
 }
 ```
 
@@ -180,11 +175,11 @@ Nx rewrites `package.json` scripts during init. Test scripts get broken:
 
 ```json
 {
-  "plugin": "@nx/jest/plugin",
-  "options": {
-    "targetName": "test",
-    "ciTargetName": "test-ci"
-  }
+    "plugin": "@nx/jest/plugin",
+    "options": {
+        "targetName": "test",
+        "ciTargetName": "test-ci"
+    }
 }
 ```
 

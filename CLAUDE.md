@@ -94,7 +94,6 @@ Co-Authored-By: claude-opus-4-6
 
 Use the actual model ID at runtime (`claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`, …) — do not guess. This is in addition to (not a replacement for) the `.ai-attribution.jsonl` log and the CHANGELOG entry. Human reviewers should be able to tell from `git log` alone which commits were AI-authored and by which model.
 
-
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
@@ -116,6 +115,5 @@ Use the actual model ID at runtime (`claude-opus-4-6`, `claude-sonnet-4-6`, `cla
 - USE for: advanced config options, unfamiliar flags, migration guides, plugin configuration, edge cases
 - DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
-
 
 <!-- nx configuration end-->
