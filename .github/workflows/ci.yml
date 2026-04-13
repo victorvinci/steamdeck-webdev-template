@@ -37,7 +37,6 @@ jobs:
     check:
         name: check (format / lint / typecheck / test)
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -142,7 +141,6 @@ jobs:
         name: build
         needs: check
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -170,7 +168,6 @@ jobs:
         name: storybook build
         needs: check
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -188,7 +185,6 @@ jobs:
         name: e2e
         needs: build
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
         container:
             image: mcr.microsoft.com/playwright:v1.55.0-jammy
         steps:
