@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TanStack Router double-generation of `routeTree.gen.ts` — real fix.** The `tanstackRouter()` export returns an array of sub-plugins (generator + code splitter) and both attempted to write `apps/frontend/src/routeTree.gen.ts`, failing the second write with `File already exists. Cannot overwrite.` This broke every fresh CI build on GitHub that wasn't a remote-cache hit. Switched `apps/frontend/vite.config.mts` to import `tanstackRouterGenerator` (generator-only) instead of `tanstackRouter`. Code splitting can be re-added later via `tanStackRouterCodeSplitter` if needed.
+
 ### Changed
 
 - **Node pin bumped to 20.19.2** (`.nvmrc`) and `package.json` `engines.node` to `>=20.19.0`. `@swc/cli@0.8.1` transitively requires Node ≥20.19.0, which broke `npm ci` in CI with an `EBADENGINE` error on the previous 20.12.0 pin.
