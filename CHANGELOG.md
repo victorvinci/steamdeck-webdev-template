@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`.github/workflows/ci.yml` hardened.** Added workflow-level `permissions: contents: read` (least-privilege `GITHUB_TOKEN`), `timeout-minutes` on every job, and a weekly `schedule:` trigger. `nx fix-ci` (Self-Healing CI) now runs on failure in `build` and `e2e` in addition to `check`. `commitlint` no longer runs `npm ci` — it invokes commitlint via `npx -p` directly, saving ~30s per PR. `npm-audit` moved to schedule-only (weekly) since Renovate and Dependabot Alerts already cover PR-time dependency scanning. `build` upload-artifact now uses `if-no-files-found: error`. Added reusable composite action at `.github/actions/setup-node-deps/action.yml` and adopted it across jobs to DRY the Node + `npm ci` setup.
+- **`.github/workflows/ci.yml` hardened.** Added workflow-level `permissions: contents: read` (least-privilege `GITHUB_TOKEN`), `timeout-minutes` on every job, and a weekly `schedule:` trigger. `nx fix-ci` (Self-Healing CI) now runs on failure in `build` and `e2e` in addition to `check`. `commitlint` no longer runs `npm ci` — it invokes commitlint via `npx -p` directly, saving ~30s per PR. `npm-audit` moved to schedule-only (weekly) since Renovate and Dependabot Alerts already cover PR-time dependency scanning. `build` upload-artifact uses `if-no-files-found: ignore` so affected-no-op pushes (CI-only changes) don't fail the job. Added reusable composite action at `.github/actions/setup-node-deps/action.yml` and adopted it across jobs to DRY the Node + `npm ci` setup.
 
 ### Fixed
 
