@@ -8,23 +8,23 @@
     "packageRules": [
         {
             "groupName": "nx",
-            "matchPackagePatterns": ["^@nx/", "^nx$", "^@nrwl/"]
+            "matchPackageNames": ["/^@nx//", "nx", "/^@nrwl//"]
         },
         {
             "groupName": "storybook",
-            "matchPackagePatterns": ["^@storybook/", "^storybook$"]
+            "matchPackageNames": ["/^@storybook//", "storybook"]
         },
         {
             "groupName": "tanstack",
-            "matchPackagePatterns": ["^@tanstack/"]
+            "matchPackageNames": ["/^@tanstack//"]
         },
         {
             "groupName": "types",
-            "matchPackagePatterns": ["^@types/"]
+            "matchPackageNames": ["/^@types//"]
         },
         {
             "groupName": "eslint",
-            "matchPackagePatterns": ["^eslint", "^@eslint/", "^typescript-eslint"]
+            "matchPackageNames": ["/^eslint/", "/^@eslint//", "/^typescript-eslint/"]
         },
         {
             "matchUpdateTypes": ["patch", "minor"],
