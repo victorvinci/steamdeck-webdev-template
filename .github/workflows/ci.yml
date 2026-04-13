@@ -20,11 +20,17 @@ on:
     push:
         branches: [main, develop]
     pull_request:
+    schedule:
+        - cron: '23 5 * * 1' # weekly Monday, for npm-audit
 
 # Cancel in-progress runs for the same PR / branch when new commits land.
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
+
+# Least-privilege default for GITHUB_TOKEN. Jobs override if they need more.
+permissions:
+    contents: read
 
 env:
     HUSKY: '0'
@@ -36,16 +42,14 @@ jobs:
 
     check:
         name: check (format / lint / typecheck / test)
+        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
 
             # --- Diagnostic: dumps git identity and GitHub context so future
             # debugging of Nx Cloud attribution has the data inline. Safe to
@@ -86,35 +90,33 @@ jobs:
         name: commitlint (PR title)
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
             - name: Lint PR title
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
-              run: echo "$PR_TITLE" | npx --yes commitlint
+              run: echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config commitlint.config.js
 
     npm-audit:
         name: npm audit (high, prod-only)
+        if: github.event_name == 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         continue-on-error: true
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - run: npm audit --audit-level=high --omit=dev
 
     attribution-guard:
         name: attribution guard
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         steps:
             - uses: actions/checkout@v4
               with:
@@ -140,16 +142,14 @@ jobs:
     build:
         name: build
         needs: check
+        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - name: nx affected — build
               run: |
                   BASE="${{ github.event.pull_request.base.sha }}"
@@ -158,25 +158,27 @@ jobs:
                   else
                     npx nx affected -t build --parallel=3 --base=HEAD~1
                   fi
+            - name: Self-Healing CI (on failure)
+              if: failure()
+              run: npx nx fix-ci
             - uses: actions/upload-artifact@v4
               with:
                   name: dist
                   path: dist
+                  if-no-files-found: error
                   retention-days: 7
 
     storybook-build:
         name: storybook build
         needs: check
+        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - run: npx nx run frontend:build-storybook
 
     # ---------- e2e ----------
@@ -184,18 +186,16 @@ jobs:
     e2e:
         name: e2e
         needs: build
+        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 30
         container:
             image: mcr.microsoft.com/playwright:v1.55.0-jammy
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - name: nx affected — e2e
               run: |
                   BASE="${{ github.event.pull_request.base.sha }}"
@@ -204,6 +204,9 @@ jobs:
                   else
                     npx nx affected -t e2e --parallel=1 --base=HEAD~1
                   fi
+            - name: Self-Healing CI (on failure)
+              if: failure()
+              run: npx nx fix-ci
             - uses: actions/upload-artifact@v4
               if: failure()
               with:
@@ -218,15 +221,13 @@ jobs:
     lighthouse:
         name: lighthouse
         needs: build
+        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         continue-on-error: true
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - uses: actions/download-artifact@v4
               with:
                   name: dist

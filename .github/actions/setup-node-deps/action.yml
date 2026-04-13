@@ -1,0 +1,11 @@
+name: Setup Node and install deps
+description: Sets up Node from .nvmrc with npm cache and runs npm ci. Requires actions/checkout to have run first.
+runs:
+    using: composite
+    steps:
+        - uses: actions/setup-node@v4
+          with:
+              node-version-file: .nvmrc
+              cache: npm
+        - run: npm ci --prefer-offline --no-audit --no-fund
+          shell: bash

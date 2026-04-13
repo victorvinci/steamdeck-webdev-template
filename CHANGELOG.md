@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`.github/workflows/ci.yml` hardened.** Added workflow-level `permissions: contents: read` (least-privilege `GITHUB_TOKEN`), `timeout-minutes` on every job, and a weekly `schedule:` trigger. `nx fix-ci` (Self-Healing CI) now runs on failure in `build` and `e2e` in addition to `check`. `commitlint` no longer runs `npm ci` — it invokes commitlint via `npx -p` directly, saving ~30s per PR. `npm-audit` moved to schedule-only (weekly) since Renovate and Dependabot Alerts already cover PR-time dependency scanning. `build` upload-artifact now uses `if-no-files-found: error`. Added reusable composite action at `.github/actions/setup-node-deps/action.yml` and adopted it across jobs to DRY the Node + `npm ci` setup.
+
 ### Fixed
 
 - **TanStack Router double-generation of `routeTree.gen.ts` — real fix.** The `tanstackRouter()` export returns an array of sub-plugins (generator + code splitter) and both attempted to write `apps/frontend/src/routeTree.gen.ts`, failing the second write with `File already exists. Cannot overwrite.` This broke every fresh CI build on GitHub that wasn't a remote-cache hit. Switched `apps/frontend/vite.config.mts` to import `tanstackRouterGenerator` (generator-only) instead of `tanstackRouter`. Code splitting can be re-added later via `tanStackRouterCodeSplitter` if needed.
