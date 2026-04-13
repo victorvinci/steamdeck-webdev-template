@@ -1,0 +1,62 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Nx
+.nx/cache
+.nx/workspace-data
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.pem
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+storybook-static
+
+# Generated
+.tanstack/
+tmp/
+apps/frontend/src/routeTree.gen.ts
+
+# AI tools
+.codex/
+.cursor/
+.opencode/
+opencode.json

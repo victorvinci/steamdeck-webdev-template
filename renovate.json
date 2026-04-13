@@ -1,0 +1,39 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
+    "timezone": "UTC",
+    "schedule": ["before 6am on monday"],
+    "labels": ["dependencies"],
+    "prConcurrentLimit": 10,
+    "packageRules": [
+        {
+            "groupName": "nx",
+            "matchPackagePatterns": ["^@nx/", "^nx$", "^@nrwl/"]
+        },
+        {
+            "groupName": "storybook",
+            "matchPackagePatterns": ["^@storybook/", "^storybook$"]
+        },
+        {
+            "groupName": "tanstack",
+            "matchPackagePatterns": ["^@tanstack/"]
+        },
+        {
+            "groupName": "types",
+            "matchPackagePatterns": ["^@types/"]
+        },
+        {
+            "groupName": "eslint",
+            "matchPackagePatterns": ["^eslint", "^@eslint/", "^typescript-eslint"]
+        },
+        {
+            "matchUpdateTypes": ["patch", "minor"],
+            "matchCurrentVersion": "!/^0/",
+            "automerge": false
+        }
+    ],
+    "vulnerabilityAlerts": {
+        "labels": ["security"],
+        "automerge": false
+    }
+}

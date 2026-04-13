@@ -1,0 +1,83 @@
+{
+    "$schema": "./node_modules/nx/schemas/nx-schema.json",
+    "nxCloudId": "69dcbee309cfc98c82fc29bf",
+    "analytics": true,
+    "plugins": [
+        {
+            "plugin": "@nx/vite/plugin",
+            "options": {
+                "buildTargetName": "build",
+                "testTargetName": "test",
+                "serveTargetName": "serve",
+                "devTargetName": "dev",
+                "previewTargetName": "preview",
+                "serveStaticTargetName": "serve-static",
+                "typecheckTargetName": "typecheck",
+                "buildDepsTargetName": "build-deps",
+                "watchDepsTargetName": "watch-deps"
+            }
+        },
+        {
+            "plugin": "@nx/eslint/plugin",
+            "options": {
+                "targetName": "lint"
+            }
+        },
+        {
+            "plugin": "@nx/vitest",
+            "options": {
+                "testTargetName": "test",
+                "ciTargetName": "test-ci",
+                "testMode": "watch"
+            }
+        },
+        {
+            "plugin": "@nx/playwright/plugin",
+            "options": {
+                "targetName": "e2e"
+            }
+        },
+        {
+            "plugin": "@nx/jest/plugin",
+            "options": {
+                "targetName": "test"
+            },
+            "exclude": ["apps/backend-e2e/**/*"]
+        },
+        {
+            "plugin": "@nx/storybook/plugin",
+            "options": {
+                "serveStorybookTargetName": "storybook",
+                "buildStorybookTargetName": "build-storybook",
+                "testStorybookTargetName": "test-storybook",
+                "staticStorybookTargetName": "static-storybook",
+                "buildDepsTargetName": "build-deps",
+                "watchDepsTargetName": "watch-deps"
+            }
+        }
+    ],
+    "generators": {
+        "@nx/react": {
+            "application": {
+                "babel": true,
+                "style": "css",
+                "linter": "eslint",
+                "bundler": "vite"
+            },
+            "component": {
+                "style": "css"
+            },
+            "library": {
+                "style": "css",
+                "linter": "eslint"
+            }
+        }
+    },
+    "targetDefaults": {
+        "@nx/esbuild:esbuild": {
+            "cache": true,
+            "dependsOn": ["^build"],
+            "inputs": ["default", "^default"]
+        }
+    }
+}

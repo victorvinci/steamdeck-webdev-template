@@ -1,0 +1,243 @@
+# GitLab CI for steamdeck-webdev-template
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   NX_CLOUD_ACCESS_TOKEN  (masked)  — enables Nx Cloud remote cache + DTE
+#
+# Secret Detection uses gitleaks under the hood, so the Security template
+# covers the "gitleaks" requirement natively.
+
+include:
+    - template: Security/SAST.gitlab-ci.yml
+    - template: Security/Secret-Detection.gitlab-ci.yml
+    - template: Security/Dependency-Scanning.gitlab-ci.yml
+
+stages:
+    - quality
+    - build
+    - test
+    - e2e
+    - report
+
+variables:
+    # Full clone so `nx affected` and the attribution guard can diff against
+    # the MR base. GitLab's default shallow clone breaks both.
+    GIT_DEPTH: '0'
+    NX_BRANCH: $CI_COMMIT_REF_NAME
+    HUSKY: '0'
+    SECRET_DETECTION_ENABLED: 'true'
+
+default:
+    image: node:20-bookworm # <--- Change from -slim to full version
+    cache:
+        key:
+            files:
+                - package-lock.json
+        paths:
+            - .npm/
+            - node_modules/
+    before_script:
+        - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+    after_script:
+        - npx nx fix-ci
+# ---------- quality ----------
+
+check:
+    stage: quality
+    # This ensures GitLab treats this as an "MR Pipeline" so metadata is sent to Nx Cloud
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    script:
+        # --- Diagnostic: dumps git identity and CI_COMMIT_* env vars so future
+        # debugging of Nx Cloud attribution has the data inline. Safe to keep —
+        # adds ~1s to the job and no secrets are printed.
+        - 'echo "=== git identity check ==="'
+        - git --version || echo "git not installed"
+        - git rev-parse HEAD || echo "no HEAD"
+        - git log -1 --pretty=fuller || echo "git log failed"
+        - 'echo "=== CI_COMMIT_* vars ==="'
+        - 'echo "CI_COMMIT_SHA=$CI_COMMIT_SHA"'
+        - 'echo "CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME"'
+        - 'echo "CI_COMMIT_AUTHOR=$CI_COMMIT_AUTHOR"'
+        - 'echo "CI_COMMIT_MESSAGE=$CI_COMMIT_MESSAGE"'
+        - 'echo "CI_MERGE_REQUEST_SOURCE_BRANCH_SHA=$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA"'
+        - 'echo "CI_MERGE_REQUEST_DIFF_BASE_SHA=$CI_MERGE_REQUEST_DIFF_BASE_SHA"'
+        - 'echo "=== end diagnostic ==="'
+        - npx nx-cloud start-ci-run --no-distribution # Groups all jobs into one 'Run' in Nx Cloud
+        - npm run format:check
+        - |
+            if [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+              npx nx affected -t lint typecheck test --parallel=3 --base=$CI_MERGE_REQUEST_DIFF_BASE_SHA --head=HEAD
+            else
+              npx nx affected -t lint typecheck test --parallel=3 --base=HEAD~1
+            fi
+    artifacts:
+        when: always
+        reports:
+            junit:
+                - '**/junit.xml'
+
+# MR-only: enforce Conventional Commits across every commit in the range
+# and on the MR title itself.
+commitlint:
+    stage: quality
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    script:
+        # Lint only the MR title — intermediate commits get squashed on merge
+        # so enforcing Conventional Commits across the range blocks MRs on
+        # historical debug commits that predate commitlint.
+        - echo "$CI_MERGE_REQUEST_TITLE" | npx --yes commitlint
+
+# Surface high-severity advisories. Non-blocking so transitive dev-dep CVEs
+# don't red-wall the pipeline.
+npm-audit:
+    stage: quality
+    allow_failure: true
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    script:
+        - npm audit --audit-level=high --omit=dev
+
+# MR-only: fail MRs that touch apps/ or libs/ without updating CHANGELOG.md,
+# warn if .ai-attribution.jsonl was not appended to.
+attribution-guard:
+    stage: quality
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    script:
+        - |
+            CHANGED=$(git diff --name-only $CI_MERGE_REQUEST_DIFF_BASE_SHA...HEAD)
+            echo "$CHANGED"
+            if echo "$CHANGED" | grep -qE '^(apps|libs)/'; then
+              if ! echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
+                echo "ERROR: apps/ or libs/ changed but CHANGELOG.md was not updated." >&2
+                exit 1
+              fi
+              if ! echo "$CHANGED" | grep -q '^\.ai-attribution\.jsonl$'; then
+                echo "WARNING: apps/ or libs/ changed but .ai-attribution.jsonl was not appended to." >&2
+              fi
+            fi
+
+# ---------- build ----------
+
+build:
+    stage: build
+    needs: ['check']
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    script:
+        - |
+            if [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+              npx nx affected -t build --parallel=3 --base=$CI_MERGE_REQUEST_DIFF_BASE_SHA --head=HEAD
+            else
+              npx nx affected -t build --parallel=3 --base=HEAD~1
+            fi
+    artifacts:
+        paths:
+            - dist
+        expire_in: 7 days
+
+# Build Storybook as a separate job so broken stories are caught even if
+# nothing else in the build graph depends on them.
+storybook-build:
+    stage: build
+    needs: ['check']
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    script:
+        - npx nx run frontend:build-storybook
+    artifacts:
+        paths:
+            - dist/storybook
+        expire_in: 7 days
+
+# ---------- e2e ----------
+
+e2e:
+    stage: e2e
+    needs: ['build']
+    image: mcr.microsoft.com/playwright:v1.55.0-jammy
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    script:
+        - |
+            if [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+              npx nx affected -t e2e --parallel=1 --base=$CI_MERGE_REQUEST_DIFF_BASE_SHA --head=HEAD
+            else
+              npx nx affected -t e2e --parallel=1 --base=HEAD~1
+            fi
+    variables:
+        PLAYWRIGHT_BROWSERS_PATH: $CI_PROJECT_DIR/.playwright
+    cache:
+        key:
+            files:
+                - package-lock.json
+        paths:
+            - .npm/
+            - node_modules/
+            - .playwright/
+    artifacts:
+        when: on_failure
+        paths:
+            - apps/frontend-e2e/playwright-report
+            - apps/backend-e2e/playwright-report
+        expire_in: 7 days
+
+# ---------- report ----------
+
+lighthouse:
+    stage: report
+    needs: ['build']
+    allow_failure: true
+    rules:
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+        - if: $CI_COMMIT_BRANCH == 'main' || $CI_COMMIT_BRANCH == 'develop'
+    script:
+        - npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+    artifacts:
+        when: always
+        paths:
+            - .lighthouseci
+        expire_in: 14 days
+
+# ---------- security template overrides ----------
+# The Security/* templates run their own containers; opt them out of the
+# default Node before_script / cache so they don't try to `npm ci` first.
+
+sast:
+    stage: quality
+    before_script: []
+    cache: {}
+
+secret_detection:
+    stage: quality
+    before_script: []
+    cache: {}
+
+gemnasium-dependency_scanning:
+    stage: quality
+    before_script: []
+    cache: {}
+# ---------- nx cloud DTE (optional, opt-in) ----------
+#
+# Nx Cloud remote cache "just works" once NX_CLOUD_ACCESS_TOKEN is set as a
+# masked CI variable — the `check` / `build` / `e2e` jobs above will pull
+# cached task outputs automatically.
+#
+# To also enable distributed task execution, uncomment the agents below and
+# prefix the `check` / `build` / `e2e` scripts with:
+#   npx nx-cloud start-ci-run --stop-agents-after="e2e"
+#
+# .nx-agent:
+#   stage: quality
+#   needs: []
+#   script:
+#     - npx nx-cloud start-agent
+#
+# nx-agent-1: { extends: .nx-agent }
+# nx-agent-2: { extends: .nx-agent }

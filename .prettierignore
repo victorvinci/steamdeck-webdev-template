@@ -1,0 +1,13 @@
+# Add files here to ignore them from prettier formatting
+/dist
+/coverage
+/.nx/cache
+/.nx/workspace-data
+dist
+node_modules
+.nx
+coverage
+routeTree.gen.ts
+
+# Append-only log — one JSON object per line, must not be reformatted.
+.ai-attribution.jsonl
