@@ -234,13 +234,29 @@ jobs:
         steps:
             - uses: actions/checkout@v4
             - uses: ./.github/actions/setup-node-deps
+            # The build job uses `if-no-files-found: ignore` on its dist
+            # upload, so an affected-no-op push (CI-only changes) produces no
+            # artifact. Tolerate the missing download and skip lhci cleanly
+            # instead of leaving a red ❌ on the run.
             - uses: actions/download-artifact@v4
+              id: dl-dist
+              continue-on-error: true
               with:
                   name: dist
                   path: dist
-            - run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
-            - uses: actions/upload-artifact@v4
-              if: always()
+            - name: Check for dist artifact
+              id: check-dist
+              run: |
+                  if [ -d dist ] && [ -n "$(ls -A dist 2>/dev/null)" ]; then
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "No dist artifact — affected build was a no-op. Skipping lighthouse."
+                  fi
+            - if: steps.check-dist.outputs.present == 'true'
+              run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+            - if: always() && steps.check-dist.outputs.present == 'true'
+              uses: actions/upload-artifact@v4
               with:
                   name: lighthouseci
                   path: .lighthouseci
