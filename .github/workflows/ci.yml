@@ -21,10 +21,18 @@ on:
         branches: [main, develop]
     pull_request:
 
+# Scheduled jobs (npm audit, future cron tasks) live in
+# .github/workflows/ci-scheduled.yml so this file stays focused on
+# push/PR gates.
+
 # Cancel in-progress runs for the same PR / branch when new commits land.
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
+
+# Least-privilege default for GITHUB_TOKEN. Jobs override if they need more.
+permissions:
+    contents: read
 
 env:
     HUSKY: '0'
@@ -37,16 +45,12 @@ jobs:
     check:
         name: check (format / lint / typecheck / test)
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
 
             # --- Diagnostic: dumps git identity and GitHub context so future
             # debugging of Nx Cloud attribution has the data inline. Safe to
@@ -87,35 +91,22 @@ jobs:
         name: commitlint (PR title)
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
             - name: Lint PR title
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
-              run: echo "$PR_TITLE" | npx --yes commitlint
-
-    npm-audit:
-        name: npm audit (high, prod-only)
-        runs-on: ubuntu-latest
-        continue-on-error: true
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
-            - run: npm audit --audit-level=high --omit=dev
+              run: echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config commitlint.config.js
 
     attribution-guard:
         name: attribution guard
         if: github.event_name == 'pull_request'
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         steps:
             - uses: actions/checkout@v4
               with:
@@ -142,16 +133,12 @@ jobs:
         name: build
         needs: check
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - name: nx affected — build
               run: |
                   BASE="${{ github.event.pull_request.base.sha }}"
@@ -160,26 +147,26 @@ jobs:
                   else
                     npx nx affected -t build --parallel=3 --base=HEAD~1
                   fi
+            - name: Self-Healing CI (on failure)
+              if: failure()
+              run: npx nx fix-ci
             - uses: actions/upload-artifact@v4
               with:
                   name: dist
                   path: dist
+                  if-no-files-found: ignore
                   retention-days: 7
 
     storybook-build:
         name: storybook build
         needs: check
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
             - run: npx nx run frontend:build-storybook
 
     # ---------- e2e ----------
@@ -188,18 +175,20 @@ jobs:
         name: e2e
         needs: build
         runs-on: ubuntu-latest
-        environment: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 'main' || '' }}
+        timeout-minutes: 30
         container:
             image: mcr.microsoft.com/playwright:v1.55.0-jammy
         steps:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            # actions/checkout sets safe.directory on the runner host, but this
+            # job runs inside a container with its own git config — without this
+            # step every git CLI call (including `nx affected`'s git diff) fails
+            # with "dubious ownership".
+            - name: Mark workspace as safe (container)
+              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            - uses: ./.github/actions/setup-node-deps
             - name: nx affected — e2e
               run: |
                   BASE="${{ github.event.pull_request.base.sha }}"
@@ -208,6 +197,9 @@ jobs:
                   else
                     npx nx affected -t e2e --parallel=1 --base=HEAD~1
                   fi
+            - name: Self-Healing CI (on failure)
+              if: failure()
+              run: npx nx fix-ci
             - uses: actions/upload-artifact@v4
               if: failure()
               with:
@@ -223,21 +215,34 @@ jobs:
         name: lighthouse
         needs: build
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         continue-on-error: true
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-            - run: npm ci --prefer-offline --no-audit --no-fund
+            - uses: ./.github/actions/setup-node-deps
+            # The build job uses `if-no-files-found: ignore` on its dist
+            # upload, so an affected-no-op push (CI-only changes) produces no
+            # artifact. Tolerate the missing download and skip lhci cleanly
+            # instead of leaving a red ❌ on the run.
             - uses: actions/download-artifact@v4
+              id: dl-dist
+              continue-on-error: true
               with:
                   name: dist
                   path: dist
-            - run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
-            - uses: actions/upload-artifact@v4
-              if: always()
+            - name: Check for dist artifact
+              id: check-dist
+              run: |
+                  if [ -d dist ] && [ -n "$(ls -A dist 2>/dev/null)" ]; then
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "No dist artifact — affected build was a no-op. Skipping lighthouse."
+                  fi
+            - if: steps.check-dist.outputs.present == 'true'
+              run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+            - if: always() && steps.check-dist.outputs.present == 'true'
+              uses: actions/upload-artifact@v4
               with:
                   name: lighthouseci
                   path: .lighthouseci

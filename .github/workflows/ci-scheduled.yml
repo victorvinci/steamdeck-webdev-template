@@ -1,0 +1,129 @@
+# Scheduled CI jobs for steamdeck-webdev-template.
+#
+# Lives separately from ci.yml so the push/PR pipeline stays focused on
+# gating jobs. Add new cron tasks (license scan, stale-branch sweep, etc.)
+# here as the project grows.
+#
+# Each job should be safe to run via `workflow_dispatch` so failures can
+# be reproduced on demand without waiting for the next cron tick.
+
+name: CI (scheduled)
+
+on:
+    schedule:
+        - cron: '23 5 * * 1' # weekly Monday 05:23 UTC
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    HUSKY: '0'
+
+jobs:
+    npm-audit:
+        name: npm audit (high, prod-only)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: write # to file/update the tracking issue on findings
+        steps:
+            - uses: actions/checkout@v4
+            - uses: ./.github/actions/setup-node-deps
+
+            # Capture machine-readable output for the issue body, but also
+            # print the human-readable summary to the job log. We intentionally
+            # do NOT fail the job on findings — the tracking issue is the
+            # signal, not a red ❌ on a cron run nobody looks at.
+            - name: Run npm audit
+              id: audit
+              run: |
+                  set +e
+                  npm audit --audit-level=high --omit=dev --json > audit.json
+                  echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+                  npm audit --audit-level=high --omit=dev || true
+
+            - name: Open or update tracking issue
+              if: steps.audit.outputs.exit_code != '0'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const audit = JSON.parse(fs.readFileSync('audit.json', 'utf8'));
+                      const meta = audit.metadata?.vulnerabilities ?? {};
+                      const high = (meta.high ?? 0) + (meta.critical ?? 0);
+                      if (high === 0) {
+                          core.info('No high/critical vulnerabilities — not filing issue.');
+                          return;
+                      }
+
+                      const label = 'npm-audit';
+                      const title = `npm audit: ${high} high/critical vulnerabilit${high === 1 ? 'y' : 'ies'} in production deps`;
+
+                      const advisories = Object.values(audit.vulnerabilities ?? {})
+                          .filter(v => v.severity === 'high' || v.severity === 'critical')
+                          .map(v => {
+                              const titles = (v.via ?? [])
+                                  .map(x => typeof x === 'string' ? x : x.title)
+                                  .filter(Boolean)
+                                  .join(', ');
+                              return `- **${v.name}** (${v.severity})${titles ? ` — ${titles}` : ''}`;
+                          })
+                          .join('\n');
+
+                      const body = [
+                          `Weekly \`npm audit --audit-level=high --omit=dev\` found vulnerabilities in production dependencies.`,
+                          ``,
+                          `**Counts:** critical=${meta.critical ?? 0}, high=${meta.high ?? 0}, moderate=${meta.moderate ?? 0}, low=${meta.low ?? 0}`,
+                          ``,
+                          `## Affected packages`,
+                          advisories || '_(see workflow logs)_',
+                          ``,
+                          `---`,
+                          `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                          ``,
+                          `Auto-filed by \`.github/workflows/ci-scheduled.yml\`. This issue is updated in place each week — close it when the underlying advisories are resolved and a fresh run will reopen a new one only if findings reappear.`,
+                      ].join('\n');
+
+                      // Ensure label exists (idempotent).
+                      try {
+                          await github.rest.issues.getLabel({ ...context.repo, name: label });
+                      } catch {
+                          await github.rest.issues.createLabel({
+                              ...context.repo,
+                              name: label,
+                              color: 'b60205',
+                              description: 'Tracking issue from weekly npm audit',
+                          });
+                      }
+
+                      const existing = await github.rest.issues.listForRepo({
+                          ...context.repo,
+                          state: 'open',
+                          labels: label,
+                          per_page: 10,
+                      });
+
+                      if (existing.data.length > 0) {
+                          const issue = existing.data[0];
+                          await github.rest.issues.update({
+                              ...context.repo,
+                              issue_number: issue.number,
+                              title,
+                              body,
+                          });
+                          core.notice(`Updated tracking issue #${issue.number}`);
+                      } else {
+                          const created = await github.rest.issues.create({
+                              ...context.repo,
+                              title,
+                              body,
+                              labels: [label, 'security'],
+                          });
+                          core.notice(`Filed tracking issue #${created.data.number}`);
+                      }

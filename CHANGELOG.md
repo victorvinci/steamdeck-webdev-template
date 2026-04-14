@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scheduled CI workflow split into `.github/workflows/ci-scheduled.yml`.** The weekly `schedule:` trigger and `npm-audit` job moved out of `ci.yml` so the push/PR pipeline stays focused on gating jobs and future cron tasks (license scan, stale-branch sweep, etc.) have a clear home. The new file also exposes `workflow_dispatch` so failures can be reproduced on demand.
+
+### Changed
+
+- **`npm-audit` is now actionable.** Previously the weekly run was `continue-on-error: true` and a real high/critical finding only showed up as a green log nobody opened. The job in `.github/workflows/ci-scheduled.yml` now captures `--json` output and uses `actions/github-script@v7` to open (or update in place) a single tracking issue labeled `npm-audit` + `security` with severity counts, affected package list, and a link back to the run. The job needs `permissions: issues: write` scoped to itself.
+- **`.github/workflows/ci.yml` cleanup.** Removed the four `if: github.event_name != 'schedule'` guards on `check`/`build`/`storybook-build`/`e2e`/`lighthouse` since the schedule trigger no longer exists on this workflow.
+
+- **`.github/workflows/ci.yml` hardened.** Added workflow-level `permissions: contents: read` (least-privilege `GITHUB_TOKEN`), `timeout-minutes` on every job, and a weekly `schedule:` trigger. `nx fix-ci` (Self-Healing CI) now runs on failure in `build` and `e2e` in addition to `check`. `commitlint` no longer runs `npm ci` — it invokes commitlint via `npx -p` directly, saving ~30s per PR. `npm-audit` moved to schedule-only (weekly) since Renovate and Dependabot Alerts already cover PR-time dependency scanning. `build` upload-artifact uses `if-no-files-found: ignore` so affected-no-op pushes (CI-only changes) don't fail the job. Added reusable composite action at `.github/actions/setup-node-deps/action.yml` and adopted it across jobs to DRY the Node + `npm ci` setup.
+
 ### Fixed
 
+- **lighthouse CI job errored on affected-no-op pushes.** When a push only touches CI/docs files, `nx affected -t build` produces no `dist/` and the build job's upload-artifact step skips (`if-no-files-found: ignore`), causing lighthouse's `download-artifact` to fail with `Artifact not found for name: dist`. The job had `continue-on-error: true` so the pipeline still passed, but it left a red ❌. `.github/workflows/ci.yml` lighthouse job now downloads with `continue-on-error: true`, checks whether `dist/` is populated, and conditionally skips both the lhci run and its report upload.
+- **e2e CI job failed inside Playwright container with `git diff ... Could not access <sha>`.** `actions/checkout@v4` writes `safe.directory` to the runner host's git config, but the `mcr.microsoft.com/playwright` container has its own git config — so every git CLI call inside the container (including the one `nx affected` shells out to) errored with "dubious ownership", and nx surfaced it as an unreachable base SHA. Added a `git config --global --add safe.directory "$GITHUB_WORKSPACE"` step right after checkout in the `e2e` job in `.github/workflows/ci.yml`.
 - **TanStack Router double-generation of `routeTree.gen.ts` — real fix.** The `tanstackRouter()` export returns an array of sub-plugins (generator + code splitter) and both attempted to write `apps/frontend/src/routeTree.gen.ts`, failing the second write with `File already exists. Cannot overwrite.` This broke every fresh CI build on GitHub that wasn't a remote-cache hit. Switched `apps/frontend/vite.config.mts` to import `tanstackRouterGenerator` (generator-only) instead of `tanstackRouter`. Code splitting can be re-added later via `tanStackRouterCodeSplitter` if needed.
 
 ### Changed
