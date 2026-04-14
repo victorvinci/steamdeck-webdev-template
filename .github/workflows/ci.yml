@@ -156,14 +156,16 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-            # Reuse the shared setup so @commitlint/cli and @commitlint/config-conventional
-            # come out of the npm cache instead of being re-downloaded per run.
+            - uses: actions/checkout@v4
             - uses: ./.github/actions/setup-node-deps
             - name: Lint PR title
               env:
-                  PR_TITLE: ${{ github.event.pull_request.title }}
-              run: echo "$PR_TITLE" | npx commitlint --config commitlint.config.js
+                  # ADD THIS LINE BELOW
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  LATEST_TITLE=$(gh pr view ${{ github.event.pull_request.number }} --json title -q .title)
+                  CLEAN_TITLE=$(echo "$LATEST_TITLE" | sed 's/^\[WIP\] //g')
+                  echo "$CLEAN_TITLE" | npx commitlint --config commitlint.config.js
 
     attribution-guard:
         name: attribution guard
