@@ -195,6 +195,12 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+            # actions/checkout sets safe.directory on the runner host, but this
+            # job runs inside a container with its own git config — without this
+            # step every git CLI call (including `nx affected`'s git diff) fails
+            # with "dubious ownership".
+            - name: Mark workspace as safe (container)
+              run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - uses: ./.github/actions/setup-node-deps
             - name: nx affected — e2e
               run: |

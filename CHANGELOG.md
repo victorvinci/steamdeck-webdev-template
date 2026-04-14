@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **e2e CI job failed inside Playwright container with `git diff ... Could not access <sha>`.** `actions/checkout@v4` writes `safe.directory` to the runner host's git config, but the `mcr.microsoft.com/playwright` container has its own git config — so every git CLI call inside the container (including the one `nx affected` shells out to) errored with "dubious ownership", and nx surfaced it as an unreachable base SHA. Added a `git config --global --add safe.directory "$GITHUB_WORKSPACE"` step right after checkout in the `e2e` job in `.github/workflows/ci.yml`.
 - **TanStack Router double-generation of `routeTree.gen.ts` — real fix.** The `tanstackRouter()` export returns an array of sub-plugins (generator + code splitter) and both attempted to write `apps/frontend/src/routeTree.gen.ts`, failing the second write with `File already exists. Cannot overwrite.` This broke every fresh CI build on GitHub that wasn't a remote-cache hit. Switched `apps/frontend/vite.config.mts` to import `tanstackRouterGenerator` (generator-only) instead of `tanstackRouter`. Code splitting can be re-added later via `tanStackRouterCodeSplitter` if needed.
 
 ### Changed
