@@ -13,6 +13,14 @@ on:
         branches: [main, develop]
     pull_request:
         branches: [main, develop]
+        # CodeQL is expensive; skip docs-only PRs.
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
     schedule:
         - cron: '17 6 * * 1' # weekly, Monday early morning
 
@@ -29,11 +37,11 @@ jobs:
             matrix:
                 language: [javascript-typescript]
         steps:
-            - uses: actions/checkout@v4
-            - uses: github/codeql-action/init@v3
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: github/codeql-action/init@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
               with:
                   languages: ${{ matrix.language }}
                   queries: security-and-quality
-            - uses: github/codeql-action/analyze@v3
+            - uses: github/codeql-action/analyze@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
               with:
                   category: '/language:${{ matrix.language }}'

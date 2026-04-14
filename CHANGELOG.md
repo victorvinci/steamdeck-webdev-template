@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`detect` job in `.github/workflows/ci.yml` (paths-filter).** A new ~20s job that uses `dorny/paths-filter` to compute whether frontend-relevant paths changed (`apps/frontend/**`, `apps/frontend-e2e/**`, `libs/**`, `.storybook/**`, `package*.json`, `nx.json`, `tsconfig*.json`, `.nvmrc`). `storybook-build` and `lighthouse` now `needs: [check, detect]` and gate on `needs.detect.outputs.frontend == 'true'`, so backend-only or shared-only changes no longer burn ~20 min on jobs that would have been no-ops.
+- **License scan job (`license-scan`) in `.github/workflows/ci-scheduled.yml`.** Weekly run of `license-checker-rseidelsohn` against production deps. Flags GPL/AGPL/LGPL/SSPL/CC-BY-NC/EUPL transitives by filing or updating a tracking issue labeled `license-scan` + `security`. Auto-closes the issue when the offenders are removed.
+- **Outdated prod deps rollup job (`outdated-deps`).** Weekly `npm outdated --json --omit=dev` → single tracking issue with a Markdown table (current/wanted/latest) and a count of how many packages are a major version behind. Complements Renovate's per-package PRs with a single drift overview.
+- **Bundle size budget job (`bundle-size`).** Weekly `npx nx run frontend:build`, then sums gzipped bytes of all `*.js` / `*.css` under `dist/` and compares to `.github/bundle-size-baseline.json`. Files an issue labeled `bundle-size` + `performance` if the current size exceeds the baseline by >10%. The baseline file is hand-maintained — bump it in a PR after intentional growth. **First run will report `no_baseline`** until you commit one (the run log shows the current measured size).
+- **Stale branch sweep job (`stale-branches`).** Weekly listing of branches with no commits in 90+ days, excluding `main`/`develop`. Files a single tracking issue labeled `stale-branches` listing each branch + last-commit date. Pure janitor — never auto-deletes.
+
+### Changed
+
+- **All third-party / first-party actions pinned to commit SHAs** in `ci.yml`, `ci-scheduled.yml`, and `codeql.yml`. Each pin is followed by a `# vX` comment so Renovate can update the SHA. `renovate.json` now extends `helpers:pinGitHubActionDigests` and groups all `github-actions` updates into a single weekly PR. Closes a supply-chain risk where a compromised tag in any upstream action could silently swap code into the pipeline.
+- **`ci.yml` push/PR triggers gain `paths-ignore`** for `**.md`, `LICENSE`, `.gitignore`, `.editorconfig`, `.vscode/**`, `docs/**`. Docs-only PRs no longer trigger the full pipeline. **Heads-up:** if you mark any CI job as a required status check on `main`, GitHub will block docs-only PRs because the skipped workflow never reports a status. Either don't mark them required, or convert to a "stub" job pattern. Same `paths-ignore` added to `codeql.yml` PR trigger.
+- **`lighthouse` job is now opt-in by branch.** Only runs when the ref is `main` or the PR base is `main` (in addition to the new `frontend` path gate). Cuts that job's minutes by ~70% since develop pushes / PRs to develop no longer trigger it. Perf regressions are caught at the release boundary, where they actually matter.
+- **Removed the `Diagnostic (git + github context)` step from the `check` job.** It existed for an Nx Cloud attribution debugging session that's long over. Saves ~5–10s per `check` run and removes log noise.
+
 - **Scheduled CI workflow split into `.github/workflows/ci-scheduled.yml`.** The weekly `schedule:` trigger and `npm-audit` job moved out of `ci.yml` so the push/PR pipeline stays focused on gating jobs and future cron tasks (license scan, stale-branch sweep, etc.) have a clear home. The new file also exposes `workflow_dispatch` so failures can be reproduced on demand.
 
 ### Changed
