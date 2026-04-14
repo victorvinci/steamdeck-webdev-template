@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- minor change to trigger CI.
+- **Changed** Nx `defaultBase` in `nx.json` to `develop` and updated `--base=main` examples in `.github/skills/nx-workspace/references/AFFECTED.md` to prepare for switching the default integration branch from `main` to `develop`.
+
 ### Fixed
 
 - **`frontend-e2e` was failing in CI because the backend it talks to was already dead by the time its tests ran.** `apps/backend-e2e/src/support/global-teardown.ts` calls `killPort(3000)` when its own Jest run finishes, and `nx run-many -t e2e` schedules `backend-e2e` first (its `dependsOn: ["backend:build", "backend:serve"]` makes it the root of the task graph). So `frontend-e2e`'s Playwright webServer would spin up `frontend:preview` (static file server, no backend dependency), the browser would fetch `/api/users` against a port nothing was listening on, `<UsersList>` would stay in its loading/error state, and the `region[name="Users"]` locator would time out on every browser. Fixed by turning `apps/frontend-e2e/playwright.config.ts`'s `webServer` into an array that starts both `frontend:preview` **and** `backend:serve:development` (with `reuseExistingServer: true` so `npm run e2e:fe` still composes with a developer's already-running `npm run be`). This is independent of the earlier `VITE_API_URL` build-time inlining incident — same symptom, different root cause.
