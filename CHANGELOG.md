@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- minor change to trigger CI.
+- minor change to trigger CI again.
+- **Changed** force draft status when opening PR.
 - **Changed** Nx `defaultBase` in `nx.json` to `develop` and updated `--base=main` examples in `.github/skills/nx-workspace/references/AFFECTED.md` to prepare for switching the default integration branch from `main` to `develop`.
 
 ### Fixed
 
+- **Silenced TypeScript 7.0 deprecation warning for `baseUrl`** in `tsconfig.base.json` by removing the now-unnecessary `baseUrl` setting and prefixing `paths` entries with `./` so they resolve relative to the config file.
 - **`frontend-e2e` was failing in CI because the backend it talks to was already dead by the time its tests ran.** `apps/backend-e2e/src/support/global-teardown.ts` calls `killPort(3000)` when its own Jest run finishes, and `nx run-many -t e2e` schedules `backend-e2e` first (its `dependsOn: ["backend:build", "backend:serve"]` makes it the root of the task graph). So `frontend-e2e`'s Playwright webServer would spin up `frontend:preview` (static file server, no backend dependency), the browser would fetch `/api/users` against a port nothing was listening on, `<UsersList>` would stay in its loading/error state, and the `region[name="Users"]` locator would time out on every browser. Fixed by turning `apps/frontend-e2e/playwright.config.ts`'s `webServer` into an array that starts both `frontend:preview` **and** `backend:serve:development` (with `reuseExistingServer: true` so `npm run e2e:fe` still composes with a developer's already-running `npm run be`). This is independent of the earlier `VITE_API_URL` build-time inlining incident — same symptom, different root cause.
 - **README `## Daily Development` command table was missing `npm run setup` and `npm run prepare`, and flattened bootstrap/quality/test/build/lifecycle commands into one ungrouped list.** Rewrote the table as the canonical full list of scripts in `package.json` (grouped into Bootstrap, Quality gates, Unit tests, E2E tests, Build, Lifecycle hooks, Raw Nx escape hatches), with a note that if a script isn't in the table it doesn't exist.
 - **README misrepresented the `attribution-guard` job as requiring both `CHANGELOG.md` and `.ai-attribution.jsonl` updates.** The job itself only blocks on `CHANGELOG.md` — a missing attribution append is logged as a warning and does not fail the PR (so human contributors opening PRs don't hit a hard block on a file they're not expected to touch). README CI/CD section now describes the actual behavior.
