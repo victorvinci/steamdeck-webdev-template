@@ -163,7 +163,12 @@ jobs:
             - name: Lint PR title
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
-              run: echo "$PR_TITLE" | npx commitlint --config commitlint.config.js
+              run: |
+                  # Fetch the latest title directly to avoid using cached event data
+                  LATEST_TITLE=$(gh pr view ${{ github.event.pull_request.number }} --json title -q .title)
+                  # Remove [WIP] prefix if present before linting
+                  CLEAN_TITLE=$(echo "$LATEST_TITLE" | sed 's/^\[WIP\] //g')
+                  echo "$CLEAN_TITLE" | npx commitlint --config commitlint.config.js
 
     attribution-guard:
         name: attribution guard
