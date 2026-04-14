@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- trigger CI
 - **Changed** `.github/workflows/ci.yml` so every `pull_request`-triggered job (`check`, `build`, `storybook-build`, `e2e`, `commitlint`, `attribution-guard`) now skips while the PR is a draft. The full gate still runs when the PR flips to ready via the `ready_for_review` event and on subsequent `synchronize` pushes.
 
 ### Added
