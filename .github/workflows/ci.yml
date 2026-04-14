@@ -288,6 +288,12 @@ jobs:
             # 127.0.0.1 → ECONNREFUSED until it times out. Binding to
             # 0.0.0.0 covers both stacks.
             HOST: 0.0.0.0
+            # Firefox refuses to launch when $HOME isn't owned by the
+            # current user. Inside the Playwright container the runner
+            # mounts the workspace under a UID that doesn't own root's
+            # HOME — Playwright's documented workaround is to pin HOME
+            # to /root for the job.
+            HOME: /root
             DB_HOST: mysql
             DB_PORT: '3306'
             DB_NAME: app

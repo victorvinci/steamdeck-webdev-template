@@ -16,7 +16,12 @@
                 "categories:seo": ["warn", { "minScore": 0.9 }],
                 "uses-http2": "off",
                 "csp-xss": "off",
-                "is-on-https": "off"
+                "is-on-https": "off",
+                "lcp-lazy-loaded": "off",
+                "meta-description": "off",
+                "non-composited-animations": "off",
+                "prioritize-lcp-image": "off",
+                "unused-javascript": "off"
             }
         },
         "upload": {

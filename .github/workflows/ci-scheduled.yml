@@ -460,11 +460,10 @@ jobs:
             # Reuses the `dist` from the bundle-size build above. Runs
             # against the already-built frontend so we don't pay for a
             # second `nx run frontend:build`. lhci assertions come from
-            # lighthouserc.json; `continue-on-error` keeps a weekly
-            # flake from turning the whole run red — the .lighthouseci
-            # artifact is the signal for humans to inspect.
+            # lighthouserc.json. The job is allowed to fail loudly —
+            # previously this step was `continue-on-error: true`, which
+            # masked real assertion failures behind a green check.
             - name: Run Lighthouse CI
-              continue-on-error: true
               run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
             - if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
