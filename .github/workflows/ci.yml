@@ -13,17 +13,40 @@
 #   - Security/SAST template                    → .github/workflows/codeql.yml
 #   - Security/Secret-Detection template        → GitHub-native Secret Scanning (repo setting)
 #   - Security/Dependency-Scanning template     → Dependabot Alerts (repo setting) + Renovate
+#
+# Action pinning policy:
+#   Third-party (and first-party) actions are pinned to commit SHAs, not tags,
+#   so a compromised tag in any upstream action repo can't silently swap code
+#   into our pipeline. The `# vX.Y.Z` comment next to each pin is what Renovate
+#   reads to bump the SHA — see `renovate.json` (`helpers:pinGitHubActionDigests`).
 
 name: CI
 
 on:
     push:
         branches: [main, develop]
+        # Skip CI when only docs / metadata change. Files that affect builds
+        # (package.json, .nvmrc, tsconfig*, .github/**, apps/**, libs/**, etc.)
+        # are intentionally NOT in this list.
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
     pull_request:
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
 
-# Scheduled jobs (npm audit, future cron tasks) live in
-# .github/workflows/ci-scheduled.yml so this file stays focused on
-# push/PR gates.
+# Scheduled jobs (npm audit, license scan, outdated deps, bundle-size budget,
+# stale branch sweep) live in .github/workflows/ci-scheduled.yml so this file
+# stays focused on push/PR gates.
 
 # Cancel in-progress runs for the same PR / branch when new commits land.
 concurrency:
@@ -40,6 +63,34 @@ env:
     NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 jobs:
+    # ---------- change detection ----------
+
+    # Detects whether frontend-relevant paths changed in this push/PR. Used to
+    # skip storybook-build and lighthouse on backend-only / shared-only / lib-
+    # only changes, which would otherwise burn ~5 min per push doing nothing.
+    detect:
+        name: detect changed paths
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        outputs:
+            frontend: ${{ steps.filter.outputs.frontend }}
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - id: filter
+              uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+              with:
+                  filters: |
+                      frontend:
+                        - 'apps/frontend/**'
+                        - 'apps/frontend-e2e/**'
+                        - 'libs/**'
+                        - '.storybook/**'
+                        - 'package.json'
+                        - 'package-lock.json'
+                        - 'nx.json'
+                        - 'tsconfig*.json'
+                        - '.nvmrc'
+
     # ---------- quality ----------
 
     check:
@@ -47,27 +98,10 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
-
-            # --- Diagnostic: dumps git identity and GitHub context so future
-            # debugging of Nx Cloud attribution has the data inline. Safe to
-            # keep — adds ~1s to the job and no secrets are printed.
-            - name: Diagnostic (git + github context)
-              run: |
-                  echo "=== git identity check ==="
-                  git --version || echo "git not installed"
-                  git rev-parse HEAD || echo "no HEAD"
-                  git log -1 --pretty=fuller || echo "git log failed"
-                  echo "=== GITHUB_* context ==="
-                  echo "github.event_name=${{ github.event_name }}"
-                  echo "github.ref=${{ github.ref }}"
-                  echo "github.sha=${{ github.sha }}"
-                  echo "base_sha=${{ github.event.pull_request.base.sha }}"
-                  echo "head_sha=${{ github.event.pull_request.head.sha }}"
-                  echo "=== end diagnostic ==="
 
             - name: Start Nx Cloud CI run
               run: npx nx-cloud start-ci-run --no-distribution
@@ -93,8 +127,8 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
               with:
                   node-version-file: .nvmrc
             - name: Lint PR title
@@ -108,7 +142,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
             - name: Enforce CHANGELOG + attribution log updates
@@ -135,7 +169,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
@@ -150,7 +184,7 @@ jobs:
             - name: Self-Healing CI (on failure)
               if: failure()
               run: npx nx fix-ci
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: dist
                   path: dist
@@ -159,11 +193,12 @@ jobs:
 
     storybook-build:
         name: storybook build
-        needs: check
+        needs: [check, detect]
+        if: needs.detect.outputs.frontend == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
@@ -179,7 +214,7 @@ jobs:
         container:
             image: mcr.microsoft.com/playwright:v1.55.0-jammy
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   fetch-depth: 0
             # actions/checkout sets safe.directory on the runner host, but this
@@ -200,7 +235,7 @@ jobs:
             - name: Self-Healing CI (on failure)
               if: failure()
               run: npx nx fix-ci
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               if: failure()
               with:
                   name: playwright-reports
@@ -211,20 +246,26 @@ jobs:
 
     # ---------- report ----------
 
+    # Lighthouse only runs where perf regressions actually matter: pushes to
+    # main and PRs targeting main. Skipped on develop pushes / PRs to develop
+    # to save ~70% of this job's minutes. Also requires a frontend change.
     lighthouse:
         name: lighthouse
-        needs: build
+        needs: [build, detect]
+        if: |
+            needs.detect.outputs.frontend == 'true' &&
+            (github.ref == 'refs/heads/main' || github.event.pull_request.base.ref == 'main')
         runs-on: ubuntu-latest
         timeout-minutes: 15
         continue-on-error: true
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - uses: ./.github/actions/setup-node-deps
             # The build job uses `if-no-files-found: ignore` on its dist
             # upload, so an affected-no-op push (CI-only changes) produces no
             # artifact. Tolerate the missing download and skip lhci cleanly
             # instead of leaving a red ❌ on the run.
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
               id: dl-dist
               continue-on-error: true
               with:
@@ -242,7 +283,7 @@ jobs:
             - if: steps.check-dist.outputs.present == 'true'
               run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
             - if: always() && steps.check-dist.outputs.present == 'true'
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: lighthouseci
                   path: .lighthouseci
