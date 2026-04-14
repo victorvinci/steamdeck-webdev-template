@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - minor change to trigger CI again.
+- **Changed** force draft status when opening PR.
 - **Changed** Nx `defaultBase` in `nx.json` to `develop` and updated `--base=main` examples in `.github/skills/nx-workspace/references/AFFECTED.md` to prepare for switching the default integration branch from `main` to `develop`.
 
 ### Fixed

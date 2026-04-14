@@ -1,0 +1,17 @@
+name: Force Draft
+on:
+    pull_request:
+        types: [opened]
+
+jobs:
+    make-draft:
+        name: Convert PR to Draft
+        runs-on: ubuntu-latest
+        permissions:
+            pull-requests: write
+        steps:
+            - name: Undo "Ready for Review"
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh pr ready ${{ github.event.pull_request.html_url }} --undo
