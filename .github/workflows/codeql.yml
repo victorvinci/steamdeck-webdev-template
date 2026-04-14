@@ -11,6 +11,15 @@ name: CodeQL
 on:
     push:
         branches: [main, develop]
+        # CodeQL is expensive; skip pushes that don't touch real code.
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
+            - '.ai-attribution.jsonl'
     pull_request:
         branches: [main, develop]
         # CodeQL is expensive; skip docs-only PRs.
@@ -21,6 +30,7 @@ on:
             - '.editorconfig'
             - '.vscode/**'
             - 'docs/**'
+            - '.ai-attribution.jsonl'
     schedule:
         - cron: '17 6 * * 1' # weekly, Monday early morning
 

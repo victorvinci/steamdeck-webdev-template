@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Skip CI on standalone attribution-only pushes.** Added `.ai-attribution.jsonl` to the `paths-ignore` list on the `push:` triggers in `.github/workflows/ci.yml` and `.github/workflows/codeql.yml` (codeql's push trigger had no paths-ignore at all — added the same list as its pull_request trigger while we were there). A bundled two-commit push still runs CI because the work commit touches non-ignored files alongside the jsonl. Also updated the attribution-commit template in `CLAUDE.md` to include `[skip ci]` in the message as belt-and-braces for any standalone follow-up pushes.
+
 - **CI pipeline minute-savings pass.** Several changes in `.github/workflows/ci.yml` and `.github/workflows/ci-scheduled.yml` to cut free-tier Actions minute burn and fix correctness edges:
     - **Push base SHA now uses `github.event.before`** (not `HEAD~1`) in the `check`, `build`, and `e2e` `nx affected` invocations. `HEAD~1` gives the wrong base on squash-merges and force-pushes, so `nx affected` could miss genuinely changed projects. Falls back to `HEAD~1` only on first-push of a new branch (all-zero `before`).
     - **Draft PRs skip `build`, `storybook-build`, and `e2e`.** `check` (lint / typecheck / test) still runs so obvious breakage still surfaces on drafts, but artifact builds and downstream e2e don't earn their minutes until the PR is marked ready for review.
