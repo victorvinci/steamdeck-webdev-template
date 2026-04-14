@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Changed** `.github/workflows/ci.yml` so every `pull_request`-triggered job (`check`, `build`, `storybook-build`, `e2e`, `commitlint`, `attribution-guard`) now skips while the PR is a draft. The full gate still runs when the PR flips to ready via the `ready_for_review` event and on subsequent `synchronize` pushes.
+
+### Added
+
+- **Added** `.github/workflows/force-draft.yml` — auto-converts newly-opened PRs to draft via `gh pr ready --undo` on `pull_request_target: opened`. Skips PRs already opened as draft and PRs authored by bots (dependabot, renovate) so their automation isn't blocked. Combined with the draft-gating in `ci.yml`, this means no CI minutes are spent on a PR until the author explicitly marks it ready.
+
 - minor change to trigger CI again.
 - **Changed** force draft status when opening PR.
 - **Changed** Nx `defaultBase` in `nx.json` to `develop` and updated `--base=main` examples in `.github/skills/nx-workspace/references/AFFECTED.md` to prepare for switching the default integration branch from `main` to `develop`.
