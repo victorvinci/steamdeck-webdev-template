@@ -23,8 +23,9 @@ jobs:
                   # 1. Convert to Draft (prevents heavy CI from running)
                   gh pr ready "$PR_URL" --undo
 
-                  # 2. Update Title (Prefixes current title with [WIP])
-                  # Note: If it already has [WIP], it won't add it again
-                  if [[ ! "$ORIGINAL_TITLE" =~ ^\[WIP\] ]]; then
+                    # 2. Update Title (Prefixes with feat: [WIP] if no type is found)
+                    if [[ ! "$ORIGINAL_TITLE" =~ ^(feat|fix|chore|docs|style|refactor|perf|test|ci|build|revert): ]]; then
+                    gh pr edit "$PR_URL" --title "feat: [WIP] $ORIGINAL_TITLE"
+                    else
                     gh pr edit "$PR_URL" --title "[WIP] $ORIGINAL_TITLE"
-                  fi
+                    fi
