@@ -35,6 +35,7 @@ function Home() {
             )}
 
             {data && <UsersList users={data.users} total={data.total} />}
+            <p>CI trigger changes</p>
         </main>
     );
 }
