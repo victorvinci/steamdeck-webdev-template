@@ -20,8 +20,10 @@ on:
     push:
         branches: [main, develop]
     pull_request:
-    schedule:
-        - cron: '23 5 * * 1' # weekly Monday, for npm-audit
+
+# Scheduled jobs (npm audit, future cron tasks) live in
+# .github/workflows/ci-scheduled.yml so this file stays focused on
+# push/PR gates.
 
 # Cancel in-progress runs for the same PR / branch when new commits land.
 concurrency:
@@ -42,7 +44,6 @@ jobs:
 
     check:
         name: check (format / lint / typecheck / test)
-        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -101,17 +102,6 @@ jobs:
                   PR_TITLE: ${{ github.event.pull_request.title }}
               run: echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config commitlint.config.js
 
-    npm-audit:
-        name: npm audit (high, prod-only)
-        if: github.event_name == 'schedule'
-        runs-on: ubuntu-latest
-        timeout-minutes: 10
-        continue-on-error: true
-        steps:
-            - uses: actions/checkout@v4
-            - uses: ./.github/actions/setup-node-deps
-            - run: npm audit --audit-level=high --omit=dev
-
     attribution-guard:
         name: attribution guard
         if: github.event_name == 'pull_request'
@@ -142,7 +132,6 @@ jobs:
     build:
         name: build
         needs: check
-        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -171,7 +160,6 @@ jobs:
     storybook-build:
         name: storybook build
         needs: check
-        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -186,7 +174,6 @@ jobs:
     e2e:
         name: e2e
         needs: build
-        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
@@ -227,7 +214,6 @@ jobs:
     lighthouse:
         name: lighthouse
         needs: build
-        if: github.event_name != 'schedule'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         continue-on-error: true
