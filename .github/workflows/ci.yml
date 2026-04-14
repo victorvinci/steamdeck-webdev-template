@@ -157,13 +157,13 @@ jobs:
         timeout-minutes: 5
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-              with:
-                  node-version-file: .nvmrc
+            # Reuse the shared setup so @commitlint/cli and @commitlint/config-conventional
+            # come out of the npm cache instead of being re-downloaded per run.
+            - uses: ./.github/actions/setup-node-deps
             - name: Lint PR title
               env:
                   PR_TITLE: ${{ github.event.pull_request.title }}
-              run: echo "$PR_TITLE" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config commitlint.config.js
+              run: echo "$PR_TITLE" | npx commitlint --config commitlint.config.js
 
     attribution-guard:
         name: attribution guard
@@ -233,7 +233,9 @@ jobs:
     storybook-build:
         name: storybook build
         needs: [check, detect]
-        if: needs.detect.outputs.frontend == 'true' && github.event.pull_request.draft != true
+        # PR-only: on push-to-main/develop the PR already ran this check before
+        # the squash-merge landed — a second run would just re-burn the minutes.
+        if: github.event_name == 'pull_request' && needs.detect.outputs.frontend == 'true' && github.event.pull_request.draft != true
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -248,9 +250,11 @@ jobs:
     e2e:
         name: e2e
         needs: build
-        # `build` already gates on draft; this is belt-and-braces for
-        # clarity so the skip is visible on the job itself.
-        if: github.event.pull_request.draft != true
+        # PR-only: e2e already ran on the PR before the squash-merge landed,
+        # so skipping on push-to-main/develop avoids double-counting ~10 min of
+        # Playwright + MySQL runtime against the monthly free-tier budget.
+        # `build` already gates on draft; the draft check is belt-and-braces.
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
@@ -357,3 +361,36 @@ jobs:
     # It was non-blocking (continue-on-error) and therefore wasn't gating
     # anything on PRs — running it on every push was pure minute burn. The
     # weekly run still surfaces perf regressions via a tracking issue.
+
+    # ---------- aggregate status ----------
+    #
+    # Single "everything required is green" check for branch protection. Point
+    # the protected branch's required status checks at `ci-pass` only, and you
+    # can rename or reshuffle the jobs above without touching branch protection
+    # settings. The job passes when every upstream job either succeeded or was
+    # intentionally skipped (e.g. storybook-build on a backend-only PR, e2e on
+    # push-to-main). It fails loudly if any upstream job failed or was
+    # cancelled — that's what `contains(... 'failure', 'cancelled')` catches.
+    ci-pass:
+        name: ci pass
+        if: always()
+        needs:
+            - check
+            - build
+            - storybook-build
+            - e2e
+            - commitlint
+            - attribution-guard
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        steps:
+            - name: Verify no upstream job failed or was cancelled
+              env:
+                  RESULTS: ${{ toJSON(needs) }}
+              run: |
+                  echo "$RESULTS"
+                  if echo "$RESULTS" | grep -Eq '"result": "(failure|cancelled)"'; then
+                      echo "One or more required jobs failed or were cancelled." >&2
+                      exit 1
+                  fi
+                  echo "All required jobs succeeded or were skipped."

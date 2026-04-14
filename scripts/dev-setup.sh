@@ -13,8 +13,9 @@ if [ ! -f .env ]; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "docker not found. Install Docker Desktop or the docker engine, then re-run." >&2
-    exit 1
+    echo "docker not found — falling back to native MySQL bootstrap (scripts/dev-setup-native.sh)."
+    echo "(Install Docker if you'd prefer the containerized flow this script normally uses.)"
+    exec bash "$ROOT/scripts/dev-setup-native.sh"
 fi
 
 echo "Starting MySQL via docker compose..."
