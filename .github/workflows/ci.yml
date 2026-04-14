@@ -243,6 +243,33 @@ jobs:
         timeout-minutes: 30
         container:
             image: mcr.microsoft.com/playwright:v1.59.1-jammy
+        services:
+            # Real MySQL for backend-e2e (asserts /api/health → db: connected
+            # and reads seeded users from /api/users) and frontend-e2e (which
+            # exercises the same users-from-backend flow). Service containers
+            # share the job network when the job runs inside a container, so
+            # the backend reaches it at hostname `mysql`.
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_DATABASE: app
+                    MYSQL_USER: app
+                    MYSQL_PASSWORD: app
+                    MYSQL_ROOT_PASSWORD: app
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -h localhost -u root -papp"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=20
+        env:
+            DB_HOST: mysql
+            DB_PORT: '3306'
+            DB_NAME: app
+            DB_USER: app
+            DB_PASSWORD: app
+            FRONTEND_URL: http://localhost:4200
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
@@ -254,6 +281,15 @@ jobs:
             - name: Mark workspace as safe (container)
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - uses: ./.github/actions/setup-node-deps
+            # The Playwright image doesn't ship a mysql client. Install it so
+            # we can load db/schema.sql into the service container before the
+            # backend boots.
+            - name: Install mysql client
+              run: |
+                  apt-get update
+                  apt-get install -y --no-install-recommends default-mysql-client
+            - name: Load schema and seed data
+              run: mysql -h mysql -u app -papp app < db/schema.sql
             - name: nx affected — e2e
               env:
                   PR_BASE: ${{ github.event.pull_request.base.sha }}
