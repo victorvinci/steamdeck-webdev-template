@@ -173,30 +173,41 @@ If you'd rather skip the script entirely:
 
 All commands are defined in `package.json` — prefer them over raw `nx` invocations.
 
-| Command                        | What it does                                  |
-| ------------------------------ | --------------------------------------------- |
-| `npm run dev`                  | Setup + run frontend and backend in parallel  |
-| `npm run fe`                   | Frontend only (`http://localhost:4200`)       |
-| `npm run be`                   | Backend only (`http://localhost:3000`)        |
-| `npm run storybook`            | Storybook for the frontend                    |
-| `npm run lint`                 | Lint every project                            |
-| `npm run lint:fix`             | Lint + autofix                                |
-| `npm run format`               | Prettier write                                |
-| `npm run format:check`         | Prettier check (CI-friendly)                  |
-| `npm run typecheck`            | `tsc --noEmit` across every project           |
-| `npm test`                     | All unit tests                                |
-| `npm run test:fe`              | Frontend tests                                |
-| `npm run test:be`              | Backend tests                                 |
-| `npm run test:types`           | `libs/types` tests                            |
-| `npm run test:utils`           | `libs/utils` tests                            |
-| `npm run e2e`                  | All e2e suites (frontend + backend)           |
-| `npm run e2e:fe`               | Frontend e2e (Playwright)                     |
-| `npm run e2e:be`               | Backend e2e (Jest)                            |
-| `npm run check`                | Format check + lint + typecheck + all tests   |
-| `npm run check:affected`       | Same, but only on Nx-affected projects        |
-| `npm run build`                | Run `check`, then build every project         |
-| `npx nx graph`                 | Visualize the project dependency graph        |
-| `npx nx affected -t lint test` | Run only on projects affected by your changes |
+Every command below maps to an entry in `package.json` → `scripts`. The table is the full list — if a script isn't here, it doesn't exist.
+
+| Command                        | What it does                                                                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bootstrap**                  |                                                                                                                                               |
+| `npm run setup`                | One-shot dev bootstrap — creates `.env` from `.env.example`, starts MySQL (Docker Compose or native `mysqld` fallback), loads `db/schema.sql` |
+| `npm run dev`                  | Runs `setup` then serves frontend + backend in parallel                                                                                       |
+| `npm run fe`                   | Frontend only (`http://localhost:4200`)                                                                                                       |
+| `npm run be`                   | Backend only (`http://localhost:3000`)                                                                                                        |
+| `npm run storybook`            | Storybook for the frontend                                                                                                                    |
+| **Quality gates**              |                                                                                                                                               |
+| `npm run lint`                 | Lint every project                                                                                                                            |
+| `npm run lint:fix`             | Lint + autofix                                                                                                                                |
+| `npm run format`               | Prettier write across the whole repo                                                                                                          |
+| `npm run format:check`         | Prettier check (CI-friendly, non-mutating)                                                                                                    |
+| `npm run typecheck`            | `tsc --noEmit` across every project                                                                                                           |
+| `npm run check`                | `format:check` + `lint` + `typecheck` + `test` in sequence — run this before every PR                                                         |
+| `npm run check:affected`       | Same as `check`, but only on Nx-affected projects                                                                                             |
+| **Unit tests**                 |                                                                                                                                               |
+| `npm test`                     | All unit tests (all projects)                                                                                                                 |
+| `npm run test:fe`              | Frontend tests (Vitest)                                                                                                                       |
+| `npm run test:be`              | Backend tests (Jest)                                                                                                                          |
+| `npm run test:types`           | `libs/types` tests                                                                                                                            |
+| `npm run test:utils`           | `libs/utils` tests                                                                                                                            |
+| **E2E tests**                  |                                                                                                                                               |
+| `npm run e2e`                  | All e2e suites (`frontend-e2e` + `backend-e2e`)                                                                                               |
+| `npm run e2e:fe`               | Frontend e2e only (Playwright)                                                                                                                |
+| `npm run e2e:be`               | Backend e2e only (Jest)                                                                                                                       |
+| **Build**                      |                                                                                                                                               |
+| `npm run build`                | Runs `check` first, then builds every project (outputs to `dist/`)                                                                            |
+| **Lifecycle hooks**            |                                                                                                                                               |
+| `npm run prepare`              | Installs Husky git hooks — runs automatically after `npm install`, you normally won't invoke it by hand                                       |
+| **Raw Nx escape hatches**      |                                                                                                                                               |
+| `npx nx graph`                 | Visualize the project dependency graph                                                                                                        |
+| `npx nx affected -t lint test` | Run arbitrary targets on Nx-affected projects only                                                                                            |
 
 ---
 

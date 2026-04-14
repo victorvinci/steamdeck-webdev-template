@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **README `## Daily Development` command table was missing `npm run setup` and `npm run prepare`, and flattened bootstrap/quality/test/build/lifecycle commands into one ungrouped list.** Rewrote the table as the canonical full list of scripts in `package.json` (grouped into Bootstrap, Quality gates, Unit tests, E2E tests, Build, Lifecycle hooks, Raw Nx escape hatches), with a note that if a script isn't in the table it doesn't exist.
 - **README misrepresented the `attribution-guard` job as requiring both `CHANGELOG.md` and `.ai-attribution.jsonl` updates.** The job itself only blocks on `CHANGELOG.md` — a missing attribution append is logged as a warning and does not fail the PR (so human contributors opening PRs don't hit a hard block on a file they're not expected to touch). README CI/CD section now describes the actual behavior.
 
 ### Changed
