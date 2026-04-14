@@ -47,7 +47,7 @@ on:
     # and blocks the merge. PRs always run CI; the push-to-main/develop
     # block above still skips docs-only merges to save minutes.
     pull_request:
-        types: [opened, synchronize, reopened, ready_for_review]
+        types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
 
 # Scheduled jobs (npm audit, license scan, outdated deps, bundle-size budget,
 # stale branch sweep) live in .github/workflows/ci-scheduled.yml so this file
