@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CI pipeline minute-savings pass.** Several changes in `.github/workflows/ci.yml` and `.github/workflows/ci-scheduled.yml` to cut free-tier Actions minute burn and fix correctness edges:
+    - **Push base SHA now uses `github.event.before`** (not `HEAD~1`) in the `check`, `build`, and `e2e` `nx affected` invocations. `HEAD~1` gives the wrong base on squash-merges and force-pushes, so `nx affected` could miss genuinely changed projects. Falls back to `HEAD~1` only on first-push of a new branch (all-zero `before`).
+    - **Draft PRs skip `build`, `storybook-build`, and `e2e`.** `check` (lint / typecheck / test) still runs so obvious breakage still surfaces on drafts, but artifact builds and downstream e2e don't earn their minutes until the PR is marked ready for review.
+    - **`lighthouse` moved from `ci.yml` (per-push) to `ci-scheduled.yml` (weekly).** It was already `continue-on-error: true`, so it wasn't gating anything on PRs — pure minute burn. It now runs weekly, reusing the frontend build from the `bundle-size` job so there's only one `nx run frontend:build` per weekly run. Report artifact retention bumped to 30 days to cover the longer cadence.
+    - **`npm-audit`, `license-scan`, and `outdated-deps` merged into one `dep-health` job** in `ci-scheduled.yml`. They were three parallel jobs each paying a ~50s cold-start (runner spin-up + checkout + `setup-node-deps`) for ~5s of real work; serialized into one job they share the setup once, saving ~2–3 min per weekly run.
+    - **`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'` added to all three workflows** (`ci.yml`, `ci-scheduled.yml`, `codeql.yml`). Silences the "Node.js 20 actions are deprecated" warning on every run and opts in early ahead of GitHub's June 2026 forced cutover. Remove once all pinned actions ship releases that default to Node 24 natively.
+
 - **`CLAUDE.md` attribution rule now mandates a two-commit flow.** Past entries kept landing with `commit: null` because a commit cannot reference its own SHA. The new flow: (1) commit the work + CHANGELOG without touching `.ai-attribution.jsonl`, (2) capture `git rev-parse --short HEAD`, (3) commit a single-line append to `.ai-attribution.jsonl` as a `chore(attribution)` follow-up. The `commit` field is now mandatory (no more `null`) when the agent is doing the commit itself; only when a human takes over the commit step does `null` remain acceptable. Cost: one extra micro-commit per AI task in exchange for guaranteed-accurate provenance links.
 
 ### Added

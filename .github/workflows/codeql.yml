@@ -24,6 +24,11 @@ on:
     schedule:
         - cron: '17 6 * * 1' # weekly, Monday early morning
 
+env:
+    # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
+    # forced cutover. See ci.yml for the full rationale.
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
     analyze:
         name: Analyze (${{ matrix.language }})
