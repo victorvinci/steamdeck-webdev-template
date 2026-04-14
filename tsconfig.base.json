@@ -1,7 +1,6 @@
 {
     "compileOnSave": false,
     "compilerOptions": {
-        "baseUrl": ".",
         "rootDir": ".",
         "sourceMap": true,
         "declaration": false,
@@ -21,8 +20,8 @@
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "paths": {
-            "@mcb/types": ["libs/types/src/index.ts"],
-            "@mcb/utils": ["libs/utils/src/index.ts"]
+            "@mcb/types": ["./libs/types/src/index.ts"],
+            "@mcb/utils": ["./libs/utils/src/index.ts"]
         }
     },
     "exclude": ["node_modules", "tmp"]
