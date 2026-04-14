@@ -1,0 +1,2 @@
+# Any change to any file requires approval from the Tech Lead
+*       @victorvinci
