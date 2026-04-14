@@ -52,6 +52,9 @@
             "cache": true,
             "dependsOn": ["^build"],
             "inputs": ["default", "^default"]
+        },
+        "build": {
+            "inputs": ["default", "^default", { "env": "VITE_API_URL" }]
         }
     }
 }

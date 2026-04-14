@@ -243,6 +243,11 @@ jobs:
         timeout-minutes: 30
         container:
             image: mcr.microsoft.com/playwright:v1.59.1-jammy
+            # Firefox refuses to launch inside the GHA container without
+            # SYS_ADMIN — its sandbox needs user-namespace clone() which
+            # the default seccomp profile blocks. This is the workaround
+            # documented in Playwright's "Run in CI" guide.
+            options: --cap-add=SYS_ADMIN
         services:
             # Real MySQL for backend-e2e (asserts /api/health → db: connected
             # and reads seeded users from /api/users) and frontend-e2e (which
@@ -293,13 +298,15 @@ jobs:
             - name: Mark workspace as safe (container)
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - uses: ./.github/actions/setup-node-deps
-            # The Playwright image doesn't ship a mysql client. Install it so
-            # we can load db/schema.sql into the service container before the
-            # backend boots.
-            - name: Install mysql client
+            # The Playwright image doesn't ship a mysql client (needed to
+            # load db/schema.sql into the service container before the
+            # backend boots) or lsof (used by backend-e2e's globalTeardown
+            # to free port 3000 — without it the teardown logs a noisy
+            # "lsof: not found" warning, harmless but noisy).
+            - name: Install mysql client and lsof
               run: |
                   apt-get update
-                  apt-get install -y --no-install-recommends default-mysql-client
+                  apt-get install -y --no-install-recommends default-mysql-client lsof
             - name: Load schema and seed data
               run: mysql -h mysql -u app -papp app < db/schema.sql
             - name: nx affected — e2e
