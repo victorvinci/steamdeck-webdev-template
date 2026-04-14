@@ -18,5 +18,5 @@ If a helper you're adding pulls in a dep or leaks an app-specific concern, it's 
 ## Running tests
 
 ```bash
-npx nx test utils
+npm run test:utils
 ```

@@ -9,17 +9,6 @@
 name: CodeQL
 
 on:
-    push:
-        branches: [main, develop]
-        # CodeQL is expensive; skip pushes that don't touch real code.
-        paths-ignore:
-            - '**.md'
-            - 'LICENSE'
-            - '.gitignore'
-            - '.editorconfig'
-            - '.vscode/**'
-            - 'docs/**'
-            - '.ai-attribution.jsonl'
     pull_request:
         branches: [main, develop]
         # CodeQL is expensive; skip docs-only PRs.
@@ -33,6 +22,17 @@ on:
             - '.ai-attribution.jsonl'
     schedule:
         - cron: '17 6 * * 1' # weekly, Monday early morning
+    # No push trigger. In a PR-based workflow CodeQL has already run on the PR
+    # before the squash-merge lands, so a second run on push-to-main would
+    # double-count minutes for the same code. The weekly cron still catches
+    # anything that sneaks in via direct push.
+    workflow_dispatch:
+
+# Cancel in-progress runs when new commits land on the same ref — two rapid
+# pushes to main otherwise queue two expensive CodeQL runs back-to-back.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 env:
     # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026

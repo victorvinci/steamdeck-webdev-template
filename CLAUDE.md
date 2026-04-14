@@ -14,7 +14,7 @@ Nx monorepo: React + Vite + TanStack Router frontend, Express backend, shared `t
 
 Always prefer the npm scripts in `package.json` over raw `nx` invocations — they are the source of truth and may evolve.
 
-- Install + first-run setup: `npm run setup`
+- Install + first-run setup: `npm run setup` (auto-detects Docker — falls back to `scripts/dev-setup-native.sh` on hosts without Docker, which provisions MySQL via `sudo mysql` auth_socket; see README → Manual Setup for password constraints)
 - Run both apps: `npm run dev`
 - Frontend only: `npm run fe` • Backend only: `npm run be`
 - Storybook: `npm run storybook`

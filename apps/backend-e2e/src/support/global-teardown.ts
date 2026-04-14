@@ -1,9 +1,8 @@
-import { killPort } from '@nx/node/utils';
-
 module.exports = async function () {
-    // Put clean up logic here (e.g. stopping services, docker-compose, etc.).
-    // Hint: `globalThis` is shared between setup and teardown.
-    const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-    await killPort(port);
+    // Do NOT killPort here. Nx owns the backend:serve process (started via
+    // this project's dependsOn) and tracks it as a long-running task; killing
+    // the port out from under Nx makes subsequent `nx run backend:serve`
+    // invocations coalesce and cancel, which breaks frontend-e2e's Playwright
+    // webServer in the same `nx run-many -t e2e` run.
     console.log(globalThis.__TEARDOWN_MESSAGE__);
 };

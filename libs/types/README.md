@@ -31,5 +31,5 @@ Because runtime validation and compile-time types come from the same definition,
 ## Running tests
 
 ```bash
-npx nx test types
+npm run test:types
 ```

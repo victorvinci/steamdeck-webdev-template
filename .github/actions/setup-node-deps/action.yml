@@ -1,5 +1,5 @@
 name: Setup Node and install deps
-description: Sets up Node from .nvmrc with npm cache and runs npm ci. Requires actions/checkout to have run first.
+description: Sets up Node from .nvmrc with npm cache, installs deps, and restores a local Nx cache so forks without NX_CLOUD_ACCESS_TOKEN still get warm-cache speedups. Requires actions/checkout to have run first.
 runs:
     using: composite
     steps:
@@ -9,3 +9,25 @@ runs:
               cache: npm
         - run: npm ci --prefer-offline --no-audit --no-fund
           shell: bash
+        # Local filesystem Nx cache. When NX_CLOUD_ACCESS_TOKEN is set the
+        # Nx Cloud remote cache is used in addition to this one — they don't
+        # conflict, Nx treats the filesystem as the L1 cache and Cloud as L2.
+        # When the token is NOT set (every fork by default, and this repo on
+        # day one of a new fork) this is the only cache Nx has, and it turns
+        # cold `nx affected` runs into near-instant no-ops on unchanged
+        # projects instead of re-computing every task from scratch.
+        #
+        # Key is the lockfile hash, so any dep bump (including Nx itself)
+        # naturally invalidates the cache. Partial restores via restore-keys
+        # catch the common case where package-lock is touched but most of the
+        # cached task outputs are still valid. The save step only runs on a
+        # primary-key miss — that's fine because for this repo the primary key
+        # only changes when deps change, and between dep changes we want the
+        # cache to stay pinned to the first run that populated it rather than
+        # churning on every push.
+        - uses: actions/cache@v4
+          with:
+              path: .nx/cache
+              key: ${{ runner.os }}-nx-${{ hashFiles('package-lock.json') }}
+              restore-keys: |
+                  ${{ runner.os }}-nx-

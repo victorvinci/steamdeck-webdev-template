@@ -8,7 +8,7 @@ Thanks for considering a contribution — this project is meant to be easy to fo
 git clone git@github.com:victorvinci/steamdeck-webdev-template.git
 cd steamdeck-webdev-template
 npm install
-npm run setup        # creates .env, starts MySQL via docker compose
+npm run setup        # creates .env, starts MySQL (docker compose, or native mysqld fallback)
 npm run dev          # runs frontend + backend in parallel
 ```
 
