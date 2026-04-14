@@ -7,8 +7,8 @@ Find projects affected by changes in the current branch.
 nx show projects --affected
 
 # Affected with explicit base
-nx show projects --affected --base=main
-nx show projects --affected --base=origin/main
+nx show projects --affected --base=develop
+nx show projects --affected --base=origin/develop
 
 # Affected between two commits
 nx show projects --affected --base=abc123 --head=def456
