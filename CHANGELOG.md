@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - trigger
+- **Changed** `.github/workflows/ci.yml` — removed `paths-ignore` from the `pull_request` trigger. Previously, pushes touching only ignored paths (`CHANGELOG.md`, `.ai-attribution.jsonl`, etc.) caused GitHub to skip the workflow entirely, leaving the required `ci-pass` status unreported and branch protection stuck on "Waiting for status." PRs now always run CI; the `push` trigger to `main`/`develop` still skips docs-only merges.
 - **Changed** `.github/workflows/ci.yml` so every `pull_request`-triggered job (`check`, `build`, `storybook-build`, `e2e`, `commitlint`, `attribution-guard`) now skips while the PR is a draft. The full gate still runs when the PR flips to ready via the `ready_for_review` event and on subsequent `synchronize` pushes.
 
 ### Added
