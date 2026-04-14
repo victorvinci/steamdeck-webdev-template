@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`CLAUDE.md` attribution rule now mandates a two-commit flow.** Past entries kept landing with `commit: null` because a commit cannot reference its own SHA. The new flow: (1) commit the work + CHANGELOG without touching `.ai-attribution.jsonl`, (2) capture `git rev-parse --short HEAD`, (3) commit a single-line append to `.ai-attribution.jsonl` as a `chore(attribution)` follow-up. The `commit` field is now mandatory (no more `null`) when the agent is doing the commit itself; only when a human takes over the commit step does `null` remain acceptable. Cost: one extra micro-commit per AI task in exchange for guaranteed-accurate provenance links.
+
 ### Added
 
 - **`detect` job in `.github/workflows/ci.yml` (paths-filter).** A new ~20s job that uses `dorny/paths-filter` to compute whether frontend-relevant paths changed (`apps/frontend/**`, `apps/frontend-e2e/**`, `libs/**`, `.storybook/**`, `package*.json`, `nx.json`, `tsconfig*.json`, `.nvmrc`). `storybook-build` and `lighthouse` now `needs: [check, detect]` and gate on `needs.detect.outputs.frontend == 'true'`, so backend-only or shared-only changes no longer burn ~20 min on jobs that would have been no-ops.

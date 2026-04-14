@@ -53,7 +53,7 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
     "scope": "short-slug",
     "description": "one-sentence summary",
     "files": ["path/one.ts", "path/two.ts"],
-    "commit": null
+    "commit": "abc1234"
 }
 ```
 
@@ -61,8 +61,21 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
 - `model` — exact model ID (e.g. `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`). Check the runtime, do not guess.
 - `scope` — short slug tying related changes together (e.g. `hardening-pass-0.1.0`, `add-auth`, `fix-health-route`).
 - `description` — one sentence, what changed and why.
-- `files` — every file the AI touched in this pass.
-- `commit` — leave `null` when writing; fill in the commit SHA later if you want a tight link. Optional.
+- `files` — every file the AI touched **in the work commit** (do NOT include `.ai-attribution.jsonl` itself — it lives in the follow-up commit).
+- `commit` — short SHA (7+ chars) of the commit containing the actual work, filled in by the agent **after** the work commit lands. See the two-commit flow below.
+
+**Two-commit flow (MANDATORY when committing):**
+
+A commit cannot reference its own SHA, so the JSONL entry is appended in a separate follow-up commit immediately after the work commit. This guarantees the `commit` field always points to a real, existing SHA — no `null`s, no off-by-one drift from amends.
+
+When the user asks you to commit your work:
+
+1. **Work commit.** Stage and commit everything _except_ `.ai-attribution.jsonl`. The work commit must include `CHANGELOG.md` (per the CHANGELOG rule below) and use the standard `Co-Authored-By: <model-id>` trailer.
+2. **Capture the SHA.** Run `git rev-parse --short HEAD` immediately after step 1. That short SHA is what goes in the `commit` field.
+3. **Attribution commit.** Append the JSONL line with the SHA from step 2, then commit just `.ai-attribution.jsonl` with a short message like `chore(attribution): log <scope>`. Same `Co-Authored-By` trailer applies.
+4. **Push both together** (a single `git push` after step 3 sends both commits).
+
+If the user is _not_ asking you to commit (e.g. you're just editing files on a feature branch they'll commit themselves), append the JSONL line with `"commit": null` and let the human fill it in when they commit, or fill it in yourself in a follow-up turn after they confirm the SHA.
 
 **Rules:**
 
@@ -70,6 +83,7 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
 - Never delete entries. This is an audit log, not scratch space. Corrections go in a new entry.
 - Do **not** add inline `// ai: …` comments in source files. The log is the single source of truth.
 - When multiple branches each append one line and hit a merge conflict, resolve by keeping both lines — not by picking one.
+- The attribution commit is intentionally tiny and outside the work commit. Do **not** try to amend the work commit to include the JSONL entry — amending changes the SHA and breaks the field you just wrote.
 
 Human contributors can read the log to see exactly what an AI touched and when. `jq` works natively on JSONL: `jq -s '.' .ai-attribution.jsonl` reads the whole file as an array.
 
