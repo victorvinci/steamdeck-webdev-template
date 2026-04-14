@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- trigger CI
 - **Changed** `.github/workflows/ci.yml` so every `pull_request`-triggered job (`check`, `build`, `storybook-build`, `e2e`, `commitlint`, `attribution-guard`) now skips while the PR is a draft. The full gate still runs when the PR flips to ready via the `ready_for_review` event and on subsequent `synchronize` pushes.
 
 ### Added
 
-- **Added** `.github/workflows/force-draft.yml` — auto-converts newly-opened PRs to draft via `gh pr ready --undo` on `pull_request_target: opened`. Skips PRs already opened as draft and PRs authored by bots (dependabot, renovate) so their automation isn't blocked. Combined with the draft-gating in `ci.yml`, this means no CI minutes are spent on a PR until the author explicitly marks it ready.
+- **Added** `.github/workflows/force-draft.yml` — auto-converts newly-opened PRs to draft via `gh pr ready --undo` on `pull_request_target: opened`. Skips PRs already opened as draft and PRs authored by bots (dependabot, renovate) so their automation isn't blocked. Uses the `FORCE_DRAFT_PAT` repo secret (fine-grained PAT with Pull requests: read/write) because `GITHUB_TOKEN` can't call the `convertPullRequestToDraft` GraphQL mutation — it returns "Resource not accessible by integration" even with `pull-requests: write`. Combined with the draft-gating in `ci.yml`, this means no CI minutes are spent on a PR until the author explicitly marks it ready.
 
 - minor change to trigger CI again.
 - **Changed** force draft status when opening PR.
