@@ -264,12 +264,24 @@ jobs:
                     --health-timeout=5s
                     --health-retries=20
         env:
+            # Bind backend to 0.0.0.0 instead of the schema's default
+            # 'localhost'. On Node 20+ inside the Playwright image,
+            # 'localhost' resolves IPv6-first (::1) so app.listen binds
+            # only to ::1, but backend-e2e's waitForPortOpen checks
+            # 127.0.0.1 → ECONNREFUSED until it times out. Binding to
+            # 0.0.0.0 covers both stacks.
+            HOST: 0.0.0.0
             DB_HOST: mysql
             DB_PORT: '3306'
             DB_NAME: app
             DB_USER: app
             DB_PASSWORD: app
             FRONTEND_URL: http://localhost:4200
+            # Vite inlines VITE_* at build time; without it the frontend
+            # Zod env validation in apps/frontend/src/lib/env.ts throws on
+            # first script eval and the page never paints (Playwright then
+            # fails the users-list test, lighthouse fails with NO_FCP).
+            VITE_API_URL: http://localhost:3000
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:

@@ -342,6 +342,13 @@ jobs:
             - uses: ./.github/actions/setup-node-deps
 
             - name: Build frontend
+              env:
+                  # Vite inlines VITE_* at build time. Without this, the
+                  # frontend Zod env check throws on first script eval and
+                  # lighthouse fails with NO_FCP because the page never
+                  # paints. Value is irrelevant for the static lighthouse
+                  # run — it just has to satisfy z.string().url().
+                  VITE_API_URL: http://localhost:3000
               run: npx nx run frontend:build
 
             - name: Measure gzipped bundle
