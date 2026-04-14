@@ -3,6 +3,10 @@ on:
     pull_request:
         types: [opened]
 
+permissions:
+    pull-requests: write
+    contents: read
+
 jobs:
     initialize-pr:
         name: Convert to Draft and Set Title
