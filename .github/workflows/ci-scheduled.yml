@@ -28,21 +28,31 @@ permissions:
 
 env:
     HUSKY: '0'
+    # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
+    # forced cutover. See ci.yml for the full rationale.
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-    # ---------- npm audit (high/critical, prod-only) ----------
+    # ---------- dependency health rollup ----------
+    #
+    # npm audit + license scan + outdated deps were three parallel jobs.
+    # They each spent ~20s spinning up a runner and another ~30s on
+    # checkout + setup-node-deps before doing ~5s of real work. Merged
+    # into one serial job they share the cold-start cost once, saving
+    # ~2–3 min of billable time per weekly run on free tier.
 
-    npm-audit:
-        name: npm audit (high, prod-only)
+    dep-health:
+        name: dep health (audit / license / outdated)
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 15
         permissions:
             contents: read
-            issues: write # to file/update the tracking issue on findings
+            issues: write
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - uses: ./.github/actions/setup-node-deps
 
+            # --- npm audit ---
             # Capture machine-readable output for the issue body, but also
             # print the human-readable summary to the job log. We intentionally
             # do NOT fail the job on findings — the tracking issue is the
@@ -134,22 +144,10 @@ jobs:
                           core.notice(`Filed tracking issue #${created.data.number}`);
                       }
 
-    # ---------- license scan (prod deps) ----------
-
-    # Catches accidentally introduced GPL/AGPL/LGPL transitive deps, which
-    # are incompatible with most commercial use. Fails soft to a tracking
-    # issue, same pattern as npm-audit.
-    license-scan:
-        name: license scan (prod deps)
-        runs-on: ubuntu-latest
-        timeout-minutes: 10
-        permissions:
-            contents: read
-            issues: write
-        steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-            - uses: ./.github/actions/setup-node-deps
-
+            # --- license scan ---
+            # Catches accidentally introduced GPL/AGPL/LGPL transitive
+            # deps, which are incompatible with most commercial use.
+            # Fails soft to a tracking issue, same pattern as npm-audit.
             - name: Run license-checker
               id: lc
               run: |
@@ -239,22 +237,10 @@ jobs:
                           core.notice(`Filed license issue #${created.data.number}`);
                       }
 
-    # ---------- outdated prod deps rollup ----------
-
-    # Renovate already opens PRs for outdated deps. This job exists as a
-    # single rollup view so you can see at a glance how stale the prod
-    # dependency tree is, without scrolling through Renovate's PR list.
-    outdated-deps:
-        name: outdated prod deps
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        permissions:
-            contents: read
-            issues: write
-        steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-            - uses: ./.github/actions/setup-node-deps
-
+            # --- outdated prod deps rollup ---
+            # Renovate already opens PRs for outdated deps. This is a
+            # single rollup view so you can see overall drift at a
+            # glance without scrolling through Renovate's PR list.
             - name: npm outdated --json
               id: out
               run: |
@@ -336,14 +322,16 @@ jobs:
                           });
                       }
 
-    # ---------- bundle size budget ----------
-
-    # Builds the frontend, computes total gzipped JS+CSS size, and compares
-    # against `.github/bundle-size-baseline.json`. Files an issue if the
-    # current size exceeds the baseline by >10%. The baseline is hand-
-    # maintained: bump it in a PR after an intentional growth.
+    # ---------- frontend perf (bundle size + lighthouse) ----------
+    #
+    # Builds the frontend once and runs both the bundle-size budget check
+    # and Lighthouse against the same dist. Lighthouse used to run on
+    # every push in ci.yml with `continue-on-error: true`, which meant it
+    # never actually gated anything — pure minute burn. Moved here so
+    # perf regressions still surface (via the tracking issue) on a cadence
+    # that matters, without paying for it on every PR.
     bundle-size:
-        name: bundle size budget
+        name: frontend perf (bundle size + lighthouse)
         runs-on: ubuntu-latest
         timeout-minutes: 15
         permissions:
@@ -354,6 +342,13 @@ jobs:
             - uses: ./.github/actions/setup-node-deps
 
             - name: Build frontend
+              env:
+                  # Vite inlines VITE_* at build time. Without this, the
+                  # frontend Zod env check throws on first script eval and
+                  # lighthouse fails with NO_FCP because the page never
+                  # paints. Value is irrelevant for the static lighthouse
+                  # run — it just has to satisfy z.string().url().
+                  VITE_API_URL: http://localhost:3000
               run: npx nx run frontend:build
 
             - name: Measure gzipped bundle
@@ -460,6 +455,23 @@ jobs:
                               ...context.repo, title, body, labels: [label, 'performance'],
                           });
                       }
+
+            # --- lighthouse ---
+            # Reuses the `dist` from the bundle-size build above. Runs
+            # against the already-built frontend so we don't pay for a
+            # second `nx run frontend:build`. lhci assertions come from
+            # lighthouserc.json. The job is allowed to fail loudly —
+            # previously this step was `continue-on-error: true`, which
+            # masked real assertion failures behind a green check.
+            - name: Run Lighthouse CI
+              run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+            - if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: lighthouseci
+                  path: .lighthouseci
+                  if-no-files-found: ignore
+                  retention-days: 30
 
     # ---------- stale branch sweep ----------
 

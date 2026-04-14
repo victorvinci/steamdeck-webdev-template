@@ -35,6 +35,12 @@ on:
             - '.editorconfig'
             - '.vscode/**'
             - 'docs/**'
+            # Standalone attribution-only pushes (the second commit of the
+            # two-commit flow when pushed on its own) shouldn't burn a CI
+            # run. Bundled pushes that touch real code alongside this file
+            # still trigger CI because paths-ignore only skips when EVERY
+            # changed path matches.
+            - '.ai-attribution.jsonl'
     pull_request:
         paths-ignore:
             - '**.md'
@@ -43,6 +49,12 @@ on:
             - '.editorconfig'
             - '.vscode/**'
             - 'docs/**'
+            # Standalone attribution-only pushes (the second commit of the
+            # two-commit flow when pushed on its own) shouldn't burn a CI
+            # run. Bundled pushes that touch real code alongside this file
+            # still trigger CI because paths-ignore only skips when EVERY
+            # changed path matches.
+            - '.ai-attribution.jsonl'
 
 # Scheduled jobs (npm audit, license scan, outdated deps, bundle-size budget,
 # stale branch sweep) live in .github/workflows/ci-scheduled.yml so this file
@@ -61,6 +73,12 @@ env:
     HUSKY: '0'
     NX_BRANCH: ${{ github.head_ref || github.ref_name }}
     NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+    # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
+    # forced cutover. Silences the "Node.js 20 actions are deprecated"
+    # warning on every run. Remove once all pinned actions ship releases
+    # that default to Node 24 natively.
+    # https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
     # ---------- change detection ----------
@@ -109,8 +127,19 @@ jobs:
             - run: npm run format:check
 
             - name: nx affected — lint / typecheck / test
+              env:
+                  PR_BASE: ${{ github.event.pull_request.base.sha }}
+                  PUSH_BEFORE: ${{ github.event.before }}
               run: |
-                  BASE="${{ github.event.pull_request.base.sha }}"
+                  # PR → use the PR base. Push → use the pre-push SHA
+                  # (github.event.before), which is correct for squash-
+                  # merges and force-pushes where HEAD~1 lies. First push
+                  # of a new branch reports all-zero before — fall back
+                  # to HEAD~1.
+                  BASE="$PR_BASE"
+                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+                    BASE="$PUSH_BEFORE"
+                  fi
                   if [ -n "$BASE" ]; then
                     npx nx affected -t lint typecheck test --parallel=3 --base="$BASE" --head=HEAD
                   else
@@ -166,6 +195,10 @@ jobs:
     build:
         name: build
         needs: check
+        # Skip on draft PRs — lint/typecheck/test in `check` still run to
+        # catch obvious breakage, but artifact builds and downstream e2e
+        # don't earn their minutes until the PR is marked ready.
+        if: github.event.pull_request.draft != true
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -174,8 +207,14 @@ jobs:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
             - name: nx affected — build
+              env:
+                  PR_BASE: ${{ github.event.pull_request.base.sha }}
+                  PUSH_BEFORE: ${{ github.event.before }}
               run: |
-                  BASE="${{ github.event.pull_request.base.sha }}"
+                  BASE="$PR_BASE"
+                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+                    BASE="$PUSH_BEFORE"
+                  fi
                   if [ -n "$BASE" ]; then
                     npx nx affected -t build --parallel=3 --base="$BASE" --head=HEAD
                   else
@@ -194,7 +233,7 @@ jobs:
     storybook-build:
         name: storybook build
         needs: [check, detect]
-        if: needs.detect.outputs.frontend == 'true'
+        if: needs.detect.outputs.frontend == 'true' && github.event.pull_request.draft != true
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -209,10 +248,63 @@ jobs:
     e2e:
         name: e2e
         needs: build
+        # `build` already gates on draft; this is belt-and-braces for
+        # clarity so the skip is visible on the job itself.
+        if: github.event.pull_request.draft != true
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
-            image: mcr.microsoft.com/playwright:v1.55.0-jammy
+            image: mcr.microsoft.com/playwright:v1.59.1-jammy
+            # Firefox refuses to launch inside the GHA container without
+            # SYS_ADMIN — its sandbox needs user-namespace clone() which
+            # the default seccomp profile blocks. This is the workaround
+            # documented in Playwright's "Run in CI" guide.
+            options: --cap-add=SYS_ADMIN
+        services:
+            # Real MySQL for backend-e2e (asserts /api/health → db: connected
+            # and reads seeded users from /api/users) and frontend-e2e (which
+            # exercises the same users-from-backend flow). Service containers
+            # share the job network when the job runs inside a container, so
+            # the backend reaches it at hostname `mysql`.
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_DATABASE: app
+                    MYSQL_USER: app
+                    MYSQL_PASSWORD: app
+                    MYSQL_ROOT_PASSWORD: app
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -h localhost -u root -papp"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=20
+        env:
+            # Bind backend to 0.0.0.0 instead of the schema's default
+            # 'localhost'. On Node 20+ inside the Playwright image,
+            # 'localhost' resolves IPv6-first (::1) so app.listen binds
+            # only to ::1, but backend-e2e's waitForPortOpen checks
+            # 127.0.0.1 → ECONNREFUSED until it times out. Binding to
+            # 0.0.0.0 covers both stacks.
+            HOST: 0.0.0.0
+            # Firefox refuses to launch when $HOME isn't owned by the
+            # current user. Inside the Playwright container the runner
+            # mounts the workspace under a UID that doesn't own root's
+            # HOME — Playwright's documented workaround is to pin HOME
+            # to /root for the job.
+            HOME: /root
+            DB_HOST: mysql
+            DB_PORT: '3306'
+            DB_NAME: app
+            DB_USER: app
+            DB_PASSWORD: app
+            FRONTEND_URL: http://localhost:4200
+            # Vite inlines VITE_* at build time; without it the frontend
+            # Zod env validation in apps/frontend/src/lib/env.ts throws on
+            # first script eval and the page never paints (Playwright then
+            # fails the users-list test, lighthouse fails with NO_FCP).
+            VITE_API_URL: http://localhost:3000
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
@@ -224,9 +316,26 @@ jobs:
             - name: Mark workspace as safe (container)
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - uses: ./.github/actions/setup-node-deps
-            - name: nx affected — e2e
+            # The Playwright image doesn't ship a mysql client (needed to
+            # load db/schema.sql into the service container before the
+            # backend boots) or lsof (used by backend-e2e's globalTeardown
+            # to free port 3000 — without it the teardown logs a noisy
+            # "lsof: not found" warning, harmless but noisy).
+            - name: Install mysql client and lsof
               run: |
-                  BASE="${{ github.event.pull_request.base.sha }}"
+                  apt-get update
+                  apt-get install -y --no-install-recommends default-mysql-client lsof
+            - name: Load schema and seed data
+              run: mysql -h mysql -u app -papp app < db/schema.sql
+            - name: nx affected — e2e
+              env:
+                  PR_BASE: ${{ github.event.pull_request.base.sha }}
+                  PUSH_BEFORE: ${{ github.event.before }}
+              run: |
+                  BASE="$PR_BASE"
+                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+                    BASE="$PUSH_BEFORE"
+                  fi
                   if [ -n "$BASE" ]; then
                     npx nx affected -t e2e --parallel=1 --base="$BASE" --head=HEAD
                   else
@@ -244,47 +353,7 @@ jobs:
                       apps/backend-e2e/playwright-report
                   retention-days: 7
 
-    # ---------- report ----------
-
-    # Lighthouse only runs where perf regressions actually matter: pushes to
-    # main and PRs targeting main. Skipped on develop pushes / PRs to develop
-    # to save ~70% of this job's minutes. Also requires a frontend change.
-    lighthouse:
-        name: lighthouse
-        needs: [build, detect]
-        if: |
-            needs.detect.outputs.frontend == 'true' &&
-            (github.ref == 'refs/heads/main' || github.event.pull_request.base.ref == 'main')
-        runs-on: ubuntu-latest
-        timeout-minutes: 15
-        continue-on-error: true
-        steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-            - uses: ./.github/actions/setup-node-deps
-            # The build job uses `if-no-files-found: ignore` on its dist
-            # upload, so an affected-no-op push (CI-only changes) produces no
-            # artifact. Tolerate the missing download and skip lhci cleanly
-            # instead of leaving a red ❌ on the run.
-            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-              id: dl-dist
-              continue-on-error: true
-              with:
-                  name: dist
-                  path: dist
-            - name: Check for dist artifact
-              id: check-dist
-              run: |
-                  if [ -d dist ] && [ -n "$(ls -A dist 2>/dev/null)" ]; then
-                    echo "present=true" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "present=false" >> "$GITHUB_OUTPUT"
-                    echo "No dist artifact — affected build was a no-op. Skipping lighthouse."
-                  fi
-            - if: steps.check-dist.outputs.present == 'true'
-              run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
-            - if: always() && steps.check-dist.outputs.present == 'true'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-              with:
-                  name: lighthouseci
-                  path: .lighthouseci
-                  retention-days: 14
+    # Lighthouse moved to .github/workflows/ci-scheduled.yml (weekly cron).
+    # It was non-blocking (continue-on-error) and therefore wasn't gating
+    # anything on PRs — running it on every push was pure minute burn. The
+    # weekly run still surfaces perf regressions via a tracking issue.

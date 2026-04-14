@@ -72,7 +72,7 @@ When the user asks you to commit your work:
 
 1. **Work commit.** Stage and commit everything _except_ `.ai-attribution.jsonl`. The work commit must include `CHANGELOG.md` (per the CHANGELOG rule below) and use the standard `Co-Authored-By: <model-id>` trailer.
 2. **Capture the SHA.** Run `git rev-parse --short HEAD` immediately after step 1. That short SHA is what goes in the `commit` field.
-3. **Attribution commit.** Append the JSONL line with the SHA from step 2, then commit just `.ai-attribution.jsonl` with a short message like `chore(attribution): log <scope>`. Same `Co-Authored-By` trailer applies.
+3. **Attribution commit.** Append the JSONL line with the SHA from step 2, then commit just `.ai-attribution.jsonl` with a short message like `chore(attribution): log <scope>`. Same `Co-Authored-By` trailer applies. **Do NOT add `[skip ci]` to this message** — GitHub checks `[skip ci]` only on the head commit of a push, so a `[skip ci]` marker on the attribution tip silently skips CI for the work commit underneath it in the bundled two-commit push. Standalone attribution-only pushes are already skipped via `paths-ignore: ['.ai-attribution.jsonl']` in `ci.yml` and `codeql.yml`, which correctly only skips when _every_ changed path matches — bundled pushes still trigger CI because the work commit touches non-ignored files.
 4. **Push both together** (a single `git push` after step 3 sends both commits).
 
 If the user is _not_ asking you to commit (e.g. you're just editing files on a feature branch they'll commit themselves), append the JSONL line with `"commit": null` and let the human fill it in when they commit, or fill it in yourself in a follow-up turn after they confirm the SHA.
