@@ -114,6 +114,9 @@ jobs:
 
     check:
         name: check (format / lint / typecheck / test)
+        # Skip on draft PRs. The `ready_for_review` trigger fires when the
+        # PR leaves draft, so the full gate still runs before merge.
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -153,7 +156,7 @@ jobs:
 
     commitlint:
         name: commitlint (PR title)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -170,7 +173,7 @@ jobs:
 
     attribution-guard:
         name: attribution guard
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -198,9 +201,10 @@ jobs:
     build:
         name: build
         needs: check
-        # Skip on draft PRs — lint/typecheck/test in `check` still run to
-        # catch obvious breakage, but artifact builds and downstream e2e
-        # don't earn their minutes until the PR is marked ready.
+        # Skip on draft PRs. `check` is already gated, so `needs: check`
+        # would skip this job transitively, but the explicit condition
+        # makes the intent visible in the job list.
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -237,7 +241,7 @@ jobs:
         needs: [check, detect]
         # PR-only: on push-to-main/develop the PR already ran this check before
         # the squash-merge landed — a second run would just re-burn the minutes.
-        if: github.event_name == 'pull_request' && needs.detect.outputs.frontend == 'true'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect.outputs.frontend == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -255,8 +259,7 @@ jobs:
         # PR-only: e2e already ran on the PR before the squash-merge landed,
         # so skipping on push-to-main/develop avoids double-counting ~10 min of
         # Playwright + MySQL runtime against the monthly free-tier budget.
-        # `build` already gates on draft; the draft check is belt-and-braces.
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
