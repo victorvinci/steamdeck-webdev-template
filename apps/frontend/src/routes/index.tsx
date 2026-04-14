@@ -35,7 +35,6 @@ function Home() {
             )}
 
             {data && <UsersList users={data.users} total={data.total} />}
-            <p>very good</p>
         </main>
     );
 }
