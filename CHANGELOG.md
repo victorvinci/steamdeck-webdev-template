@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **e2e CI failures from Playwright image/version mismatch and backend-e2e TS errors.** Bumped the e2e job container in `.github/workflows/ci.yml` from `mcr.microsoft.com/playwright:v1.55.0-jammy` to `v1.59.1-jammy` to match the resolved `@playwright/test@1.59.1` (the older image was missing `chromium_headless_shell-1217`, `firefox-1511`, and `webkit-2272`, causing `browserType.launch: Executable doesn't exist` across every browser). Also rewrote the `__TEARDOWN_MESSAGE__` shim in `apps/backend-e2e/src/support/global-setup.ts` as a `declare global` block so `globalThis.__TEARDOWN_MESSAGE__` typechecks (was failing with TS6133 + TS7017 and aborting Jest's globalSetup).
+
 ### Changed
 
 - **CI pipeline minute-savings pass.** Several changes in `.github/workflows/ci.yml` and `.github/workflows/ci-scheduled.yml` to cut free-tier Actions minute burn and fix correctness edges:
