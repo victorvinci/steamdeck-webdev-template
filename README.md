@@ -9,6 +9,13 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 > **Why this matters for you:** nothing in this repo is Steam Deck-specific — the code, scripts, and CI all work on any Linux/macOS machine — but the dev-setup scripts (`scripts/dev-setup-native.sh`, the `npm run setup` flow, the `sudo mysql` auth_socket paths) were written and tested assuming you're inside a **Debian/Ubuntu-family userland** (Mint, Ubuntu, Debian) with normal sudo, not on bare SteamOS. If you're on a Steam Deck yourself, create a Mint distrobox (`distrobox create --name mint --image linuxmintd/mint22-amd64`) and clone the repo inside it — everything else in this README applies as-is.
 >
 > **Editor setup on Steam Deck:** VS Code / Cursor / any editor of choice is installed **inside the Distrobox container** (not on the SteamOS host) and launched from there, so it sees the container's toolchain and pathed binaries. Git, node, docker, and mysql clients all live in the container.
+>
+> **Steam Deck host helpers.** `scripts/steamdeck/` ships two host-level utility scripts that are **not** part of the project build — they keep a Steam Deck dev workstation livable across SteamOS updates (which wipe the root filesystem) and day-to-day boots. They're bundled here so a fresh Deck can clone this repo and immediately restore its dev environment without hunting them down:
+>
+> - **`backup.sh`** + **`BACKUP_README.md`** — backs up dotfiles (`.zshrc`, `.gitconfig`, …), SSH keys, KDE autostart entries, Starship/KeePassXC/terminal configs, font installs, VS Code/Cursor plugin lists, and project references to a chosen destination (external drive recommended). Successful runs verify SHA-256 checksums immediately and auto-rotate old backups. Run it on a healthy Deck, restore from it on a freshly-reimaged one.
+> - **`boot_sequence.sh`** + **`BOOT_SEQUENCE_README.md`** — KDE autostart helper that fixes the Proton Mail Bridge "No keychain available" race on boot. Waits for KeePassXC to register `org.freedesktop.secrets` on D-Bus **and for the database to be unlocked** before launching Bridge. Without this two-stage gate, Bridge can race ahead against a locked vault and silently rewrite `vault.enc` as unencrypted — unrecoverable without reconfiguring every Proton account. The READMEs explain the D-Bus mechanics and the `.desktop` autostart wiring.
+>
+> Both scripts have their own changelog at `scripts/steamdeck/CHANGELOG.md` (separate from this repo's top-level `CHANGELOG.md` — they evolve independently from the web template).
 
 > **Heads-up:** this boilerplate intentionally **ships without authentication**. Add your own auth layer (JWT, sessions, OAuth, Auth.js, etc.) before exposing protected data. See [Security](#security).
 
