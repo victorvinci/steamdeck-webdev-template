@@ -402,6 +402,8 @@ jobs:
             - attribution-guard
         runs-on: ubuntu-latest
         timeout-minutes: 2
+        # deployment trigger ONLY for the main branch
+        environment: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
         steps:
             - name: Verify no upstream job failed or was cancelled
               env:

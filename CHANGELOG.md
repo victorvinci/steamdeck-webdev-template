@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Added** re-enable the deployment tracking exclusively for the main branch.
+
 - **Added** `scripts/steamdeck/` — Steam Deck host-level utility scripts (`backup.sh`, `boot_sequence.sh`) with their own `README.md` files and a local `CHANGELOG.md`. `backup.sh` backs up dotfiles/configs/SSH keys/autostart entries/plugins to an external drive with SHA-256 verification and rotation; `boot_sequence.sh` is a KDE autostart helper that gates Proton Mail Bridge behind a fully-unlocked KeePassXC database to avoid silently rewriting `vault.enc` as unencrypted. Not wired into the project build — bundled so a freshly-reimaged Deck can clone this repo and restore its dev environment.
 - **Added** `README.md` — top-of-file "Steam Deck host helpers" block under the existing SteamOS section, documenting the new `scripts/steamdeck/` utilities and pointing at their READMEs.
 - **Added** `README.md` — top-of-file "Built on SteamOS" section explaining that development happens inside a Linux Mint Distrobox container on the Steam Deck (because SteamOS's rootfs is immutable), with notes on editor placement and Debian/Ubuntu-family userland assumptions for `scripts/dev-setup-native.sh`.
