@@ -288,4 +288,4 @@ We considered installing Bridge natively from AUR with the `pass` keychain backe
 - **Every SteamOS update wipes everything under `/usr`** — you'd have to redo the install
 - You still need to type a passphrase at boot (GPG instead of KeePassXC) — no real security gain
 
-The KeePassXC + boot_sequence approach is fragile in _exactly one_ way (you have to type the master password each boot), and bulletproof in every other way. It survives SteamOS updates without intervention.
+The KeePassXC + boot*sequence approach is fragile in \_exactly one* way (you have to type the master password each boot), and bulletproof in every other way. It survives SteamOS updates without intervention.
