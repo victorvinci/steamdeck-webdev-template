@@ -48,6 +48,19 @@ on:
     # block above still skips docs-only merges to save minutes.
     pull_request:
         types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
+            # Standalone attribution-only pushes (the second commit of the
+            # two-commit flow when pushed on its own) shouldn't burn a CI
+            # run. Bundled pushes that touch real code alongside this file
+            # still trigger CI because paths-ignore only skips when EVERY
+            # changed path matches.
+            - '.ai-attribution.jsonl'
 
 # Scheduled jobs (npm audit, license scan, outdated deps, bundle-size budget,
 # stale branch sweep) live in .github/workflows/ci-scheduled.yml so this file
