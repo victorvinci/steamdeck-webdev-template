@@ -4,6 +4,12 @@ A full-stack Nx monorepo boilerplate with a React frontend, an Express backend, 
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
+> **Built on a Steam Deck running SteamOS.** This template was developed end-to-end inside a **Linux Mint Distrobox container** on SteamOS, because SteamOS's root filesystem is immutable and read-only by default — you can't install system packages (node, mysql, docker) onto the host without unlocking it, and unlocking resets on every OS update. Running development inside Distrobox sidesteps that entirely: the container is a normal mutable Mint install with its own `/usr`, `/home`, and package manager, and the host stays pristine.
+>
+> **Why this matters for you:** nothing in this repo is Steam Deck-specific — the code, scripts, and CI all work on any Linux/macOS machine — but the dev-setup scripts (`scripts/dev-setup-native.sh`, the `npm run setup` flow, the `sudo mysql` auth_socket paths) were written and tested assuming you're inside a **Debian/Ubuntu-family userland** (Mint, Ubuntu, Debian) with normal sudo, not on bare SteamOS. If you're on a Steam Deck yourself, create a Mint distrobox (`distrobox create --name mint --image linuxmintd/mint22-amd64`) and clone the repo inside it — everything else in this README applies as-is.
+>
+> **Editor setup on Steam Deck:** VS Code / Cursor / any editor of choice is installed **inside the Distrobox container** (not on the SteamOS host) and launched from there, so it sees the container's toolchain and pathed binaries. Git, node, docker, and mysql clients all live in the container.
+
 > **Heads-up:** this boilerplate intentionally **ships without authentication**. Add your own auth layer (JWT, sessions, OAuth, Auth.js, etc.) before exposing protected data. See [Security](#security).
 
 ---
@@ -269,12 +275,29 @@ GitHub CodeQL on JS/TS. Runs on every PR and weekly via cron — **not** on push
 
 ### Cache story
 
-- **Nx Cloud (remote cache + self-healing)** is the primary cache when `NX_CLOUD_ACCESS_TOKEN` is set. Enables distributed task execution, cross-PR cache hits, and the `npx nx fix-ci` self-healing step wired into every gating job.
-- **Local `.nx/cache` filesystem fallback** is always on via `.github/actions/setup-node-deps`. Keyed on `package-lock.json`, so any dep bump (Nx included) invalidates it. This is the only cache a **fresh fork** gets on day one — before `NX_CLOUD_ACCESS_TOKEN` is configured — and it still turns warm `nx affected` runs into near-instant no-ops on unchanged projects. When Nx Cloud is enabled the two stack (filesystem L1, cloud L2) and don't conflict.
+- **Nx Cloud (remote cache + self-healing)** is the primary cache when enabled (see "Nx Cloud configuration" below). Provides distributed task execution, cross-PR cache hits, and the `npx nx fix-ci` self-healing step wired into every gating job.
+- **Local `.nx/cache` filesystem fallback** is always on via `.github/actions/setup-node-deps`. Keyed on `package-lock.json`, so any dep bump (Nx included) invalidates it. This is the only cache a **fresh fork** gets on day one — before Nx Cloud is configured — and it still turns warm `nx affected` runs into near-instant no-ops on unchanged projects. When Nx Cloud is enabled the two stack (filesystem L1, cloud L2) and don't conflict.
+
+### Nx Cloud configuration
+
+Nx Cloud is wired in via `nxCloudId` in `nx.json` and controlled from CI by two repo-level settings that must be set up once per fork (`Settings → Secrets and variables → Actions`):
+
+| Name                    | Kind     | Required when Nx Cloud is active | Purpose                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | -------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_CLOUD_ACCESS_TOKEN` | Secret   | yes                              | Access token for your Nx Cloud workspace. Grab it from cloud.nx.app → your org → Workspace settings.                                                                                                                                                                                                       |
+| `NX_CLOUD_ENABLED`      | Variable | yes                              | Kill switch. Set to `true` to use Nx Cloud; set to `false` to bypass it entirely. When `false`, `ci.yml` blanks `NX_CLOUD_ACCESS_TOKEN`, exports `NX_NO_CLOUD=true`, and skips the `nx-cloud start-ci-run` step — so `nx affected` runs everything locally on the GitHub runner with the filesystem cache. |
+
+**Why the kill switch exists.** Nx Cloud's free plan has a monthly task budget. When you exceed it, the Nx Cloud org is disabled and every CI run fails at the first `nx-cloud start-ci-run` call with `This Nx Cloud organization has been disabled due to exceeding the FREE plan`. Until the quota resets (or you upgrade), CI is fully stuck. Flipping `NX_CLOUD_ENABLED` to `false` in repo settings takes CI off Nx Cloud immediately — no code change, no revert — and the pipeline keeps gating PRs from the local filesystem cache. Flip it back to `true` when quota resets.
+
+Blanking `NX_CLOUD_ACCESS_TOKEN` alone is **not** enough: `nxCloudId` in `nx.json` is what `nx` uses to decide whether to talk to the cloud at all, and with a valid `nxCloudId` and no token it still tries to authorize and fails. The `NX_NO_CLOUD` env var is the documented escape hatch that bypasses `nxCloudId`; that's why `ci.yml` sets both.
 
 ### One-time setup for a new fork
 
-Add `NX_CLOUD_ACCESS_TOKEN` as an Actions secret (`Settings → Secrets and variables → Actions`) so Nx Cloud's remote cache + self-healing work in pipelines. The token comes from your Nx Cloud workspace — `nxCloudId` in `nx.json` points to it. Until you do, the filesystem cache described above still gives you most of the speedup for free.
+1. Create (or adopt) an Nx Cloud workspace and copy its access token.
+2. Add `NX_CLOUD_ACCESS_TOKEN` as an **Actions secret**.
+3. Add `NX_CLOUD_ENABLED` as an **Actions variable** (not a secret — it's not sensitive) with value `true`.
+
+Until step 2 is done, the filesystem cache described above still gives you most of the speedup. Until step 3 is done, Nx Cloud is effectively off regardless of step 2 (the env expression evaluates to empty).
 
 ---
 
