@@ -79,11 +79,14 @@ env:
     HUSKY: '0'
     NX_BRANCH: ${{ github.head_ref || github.ref_name }}
     # Kill switch for Nx Cloud. When the `NX_CLOUD_ENABLED` repo variable
-    # is anything other than 'true' (e.g. when we're out of credits), the
-    # token is blanked and nx-cloud calls no-op with a warning — nx still
-    # runs everything locally. Flip the variable back to 'true' in repo
-    # Settings → Variables when credits reset.
+    # is anything other than 'true' (e.g. we're out of free-plan credits),
+    # set NX_NO_CLOUD=true so nx skips cloud entirely regardless of the
+    # nxCloudId in nx.json. Blanking the token alone is not enough — nx
+    # still tries to auth using the workspace's nxCloudId. Flip the
+    # variable back to 'true' in repo Settings → Variables when credits
+    # reset.
     NX_CLOUD_ACCESS_TOKEN: ${{ vars.NX_CLOUD_ENABLED == 'true' && secrets.NX_CLOUD_ACCESS_TOKEN || '' }}
+    NX_NO_CLOUD: ${{ vars.NX_CLOUD_ENABLED == 'true' && 'false' || 'true' }}
     # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
     # forced cutover. Silences the "Node.js 20 actions are deprecated"
     # warning on every run. Remove once all pinned actions ship releases
@@ -136,6 +139,7 @@ jobs:
             - uses: ./.github/actions/setup-node-deps
 
             - name: Start Nx Cloud CI run
+              if: vars.NX_CLOUD_ENABLED == 'true'
               run: npx nx-cloud start-ci-run --no-distribution
 
             - run: npm run format:check

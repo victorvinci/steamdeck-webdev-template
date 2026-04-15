@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Fixed** Nx Cloud kill switch in `.github/workflows/ci.yml`. Blanking `NX_CLOUD_ACCESS_TOKEN` alone wasn't enough — nx still tried to authorize via the `nxCloudId` baked into `nx.json` and failed with "Workspace is unable to be authorized" when the org was disabled. Now also sets `NX_NO_CLOUD=true` and skips the `nx-cloud start-ci-run` step when `NX_CLOUD_ENABLED != 'true'`.
 - **Added** Nx Cloud kill switch in `.github/workflows/ci.yml`. Reads new repo variable `NX_CLOUD_ENABLED` — when not `'true'`, `NX_CLOUD_ACCESS_TOKEN` is blanked so nx-cloud no-ops and everything runs locally. Lets us ride out Nx Cloud credit exhaustion without disabling CI or editing the workflow.
 - **Changed** `.github/workflows/ci.yml` — removed `paths-ignore` from the `pull_request` trigger. Previously, pushes touching only ignored paths (`CHANGELOG.md`, `.ai-attribution.jsonl`, etc.) caused GitHub to skip the workflow entirely, leaving the required `ci-pass` status unreported and branch protection stuck on "Waiting for status." PRs now always run CI; the `push` trigger to `main`/`develop` still skips docs-only merges.
 - **Changed** `.github/workflows/ci.yml` — added `converted_to_draft` to `pull_request` trigger types so flipping a running PR back to draft starts a fast skip-all run, which (via `concurrency.cancel-in-progress`) cancels the in-flight one.
