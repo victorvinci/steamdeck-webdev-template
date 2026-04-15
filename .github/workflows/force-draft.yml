@@ -1,0 +1,40 @@
+# Convert newly-opened PRs to draft so the CI gates in ci.yml (which skip
+# on draft) don't burn minutes until the author explicitly marks the PR
+# ready for review.
+#
+# Uses pull_request_target so the GITHUB_TOKEN has write scope on PRs from
+# forks as well as same-repo branches. This workflow only reads metadata
+# and calls `gh pr ready --undo` — it never checks out PR head code, so
+# running in the base-repo context is safe.
+name: Force Draft
+
+on:
+    pull_request_target:
+        types: [opened]
+
+permissions:
+    pull-requests: write
+
+jobs:
+    convert-to-draft:
+        name: Convert PR to Draft
+        runs-on: ubuntu-latest
+        timeout-minutes: 2
+        # Skip PRs that were already opened as draft (gh pr ready --undo
+        # would error) and PRs opened by bots (dependabot, renovate) — we
+        # want their automated PRs to run CI immediately.
+        if: >-
+            github.event.pull_request.draft == false &&
+            github.event.pull_request.user.type != 'Bot'
+        steps:
+            # GITHUB_TOKEN can't call the convertPullRequestToDraft GraphQL
+            # mutation even with `pull-requests: write` — it returns
+            # "Resource not accessible by integration." Use a fine-grained
+            # PAT (Pull requests: read/write on this repo) stored as
+            # FORCE_DRAFT_PAT. This workflow never checks out PR head
+            # code, so the PAT is not exposed to PR-authored scripts.
+            - name: Mark PR as draft
+              env:
+                  GH_TOKEN: ${{ secrets.FORCE_DRAFT_PAT }}
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+              run: gh pr ready "$PR_URL" --undo

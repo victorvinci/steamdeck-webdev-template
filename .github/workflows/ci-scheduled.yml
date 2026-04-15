@@ -31,6 +31,15 @@ env:
     # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
     # forced cutover. See ci.yml for the full rationale.
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    # Kill switch for Nx Cloud. When the `NX_CLOUD_ENABLED` repo variable
+    # is anything other than 'true' (e.g. we're out of free-plan credits),
+    # set NX_NO_CLOUD=true so nx skips cloud entirely regardless of the
+    # nxCloudId in nx.json. Blanking the token alone is not enough — nx
+    # still tries to auth using the workspace's nxCloudId. Flip the
+    # variable back to 'true' in repo Settings → Variables when credits
+    # reset.
+    NX_CLOUD_ACCESS_TOKEN: ${{ vars.NX_CLOUD_ENABLED == 'true' && secrets.NX_CLOUD_ACCESS_TOKEN || '' }}
+    NX_NO_CLOUD: ${{ vars.NX_CLOUD_ENABLED == 'true' && 'false' || 'true' }}
 
 jobs:
     # ---------- dependency health rollup ----------

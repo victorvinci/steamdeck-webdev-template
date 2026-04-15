@@ -41,8 +41,13 @@ on:
             # still trigger CI because paths-ignore only skips when EVERY
             # changed path matches.
             - '.ai-attribution.jsonl'
+    # No paths-ignore here: when a PR's push touches only ignored paths,
+    # GitHub skips the workflow entirely and `ci-pass` never posts, which
+    # leaves branch protection stuck on "Waiting for status to be reported"
+    # and blocks the merge. PRs always run CI; the push-to-main/develop
+    # block above still skips docs-only merges to save minutes.
     pull_request:
-        types: [opened, synchronize, reopened, ready_for_review]
+        types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
         paths-ignore:
             - '**.md'
             - 'LICENSE'
@@ -73,7 +78,15 @@ permissions:
 env:
     HUSKY: '0'
     NX_BRANCH: ${{ github.head_ref || github.ref_name }}
-    NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+    # Kill switch for Nx Cloud. When the `NX_CLOUD_ENABLED` repo variable
+    # is anything other than 'true' (e.g. we're out of free-plan credits),
+    # set NX_NO_CLOUD=true so nx skips cloud entirely regardless of the
+    # nxCloudId in nx.json. Blanking the token alone is not enough — nx
+    # still tries to auth using the workspace's nxCloudId. Flip the
+    # variable back to 'true' in repo Settings → Variables when credits
+    # reset.
+    NX_CLOUD_ACCESS_TOKEN: ${{ vars.NX_CLOUD_ENABLED == 'true' && secrets.NX_CLOUD_ACCESS_TOKEN || '' }}
+    NX_NO_CLOUD: ${{ vars.NX_CLOUD_ENABLED == 'true' && 'false' || 'true' }}
     # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
     # forced cutover. Silences the "Node.js 20 actions are deprecated"
     # warning on every run. Remove once all pinned actions ship releases
@@ -114,6 +127,9 @@ jobs:
 
     check:
         name: check (format / lint / typecheck / test)
+        # Skip on draft PRs. The `ready_for_review` trigger fires when the
+        # PR leaves draft, so the full gate still runs before merge.
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -123,6 +139,7 @@ jobs:
             - uses: ./.github/actions/setup-node-deps
 
             - name: Start Nx Cloud CI run
+              if: vars.NX_CLOUD_ENABLED == 'true'
               run: npx nx-cloud start-ci-run --no-distribution
 
             - run: npm run format:check
@@ -153,7 +170,7 @@ jobs:
 
     commitlint:
         name: commitlint (PR title)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -170,7 +187,7 @@ jobs:
 
     attribution-guard:
         name: attribution guard
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -198,9 +215,10 @@ jobs:
     build:
         name: build
         needs: check
-        # Skip on draft PRs — lint/typecheck/test in `check` still run to
-        # catch obvious breakage, but artifact builds and downstream e2e
-        # don't earn their minutes until the PR is marked ready.
+        # Skip on draft PRs. `check` is already gated, so `needs: check`
+        # would skip this job transitively, but the explicit condition
+        # makes the intent visible in the job list.
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -237,7 +255,7 @@ jobs:
         needs: [check, detect]
         # PR-only: on push-to-main/develop the PR already ran this check before
         # the squash-merge landed — a second run would just re-burn the minutes.
-        if: github.event_name == 'pull_request' && needs.detect.outputs.frontend == 'true'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect.outputs.frontend == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -255,8 +273,7 @@ jobs:
         # PR-only: e2e already ran on the PR before the squash-merge landed,
         # so skipping on push-to-main/develop avoids double-counting ~10 min of
         # Playwright + MySQL runtime against the monthly free-tier budget.
-        # `build` already gates on draft; the draft check is belt-and-braces.
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
