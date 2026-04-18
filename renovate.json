@@ -32,13 +32,24 @@
             "matchPackageNames": ["/^eslint/", "/^@eslint//", "/^typescript-eslint/"]
         },
         {
-            "matchUpdateTypes": ["patch", "minor"],
+            "matchUpdateTypes": ["patch"],
+            "matchCurrentVersion": "!/^0/",
+            "automerge": true,
+            "automergeType": "pr",
+            "automergeStrategy": "squash"
+        },
+        {
+            "matchUpdateTypes": ["minor"],
             "matchCurrentVersion": "!/^0/",
             "automerge": false
         },
         {
             "groupName": "github-actions",
             "matchManagers": ["github-actions"]
+        },
+        {
+            "matchPackageNames": ["@types/node"],
+            "allowedVersions": "<21"
         }
     ],
     "vulnerabilityAlerts": {

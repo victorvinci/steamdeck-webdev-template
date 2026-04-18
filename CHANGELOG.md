@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Changed** `package.json` — moved `pino-pretty` from `dependencies` to `devDependencies` since it's only used in dev mode (`transport: isProd ? undefined : { target: 'pino-pretty' }`), keeping the production install leaner.
+- **Changed** `apps/backend/src/config/env.ts` — guard `dotenv/config` import behind a `NODE_ENV !== 'production'` check so it's a no-op in container environments that set env vars natively.
+- **Changed** `renovate.json` — split the combined patch+minor automerge rule: patch-only updates on stable (non-0.x) packages now automerge via squash PR when CI passes, while minor updates remain manual. Reduces PR noise for low-risk version bumps.
+- **Changed** `nx.json` — added `exclude: ["apps/backend-e2e/**/*"]` to the `@nx/vitest` plugin entry to match the existing Jest plugin exclusion, preventing phantom target inference on the Playwright-based e2e project.
 - **Changed** `.github/workflows/ci.yml` — replaced `paths-ignore` on the `pull_request` trigger with a `detect` job `code` output that gates all heavy jobs (check, build, e2e, commitlint, attribution-guard). Docs-only PRs now pay ~1 min (detect + ci-pass) instead of skipping the workflow entirely, which previously left branch protection stuck on "Waiting for status."
 - **Changed** `.github/workflows/ci.yml` — merged the standalone `build` job into `check` (now named "check & build") to eliminate a redundant checkout + `npm ci` cycle, saving ~1-2 min per CI run on GitHub free tier.
 - **Changed** `.github/workflows/ci.yml` — extracted the duplicated BASE SHA resolution logic (PR base / push-before / HEAD~1 fallback) into a reusable composite action at `.github/actions/resolve-nx-base/action.yml`, used by both the `check` and `e2e` jobs.

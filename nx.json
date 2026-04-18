@@ -21,7 +21,8 @@
         { "plugin": "@nx/eslint/plugin", "options": { "targetName": "lint" } },
         {
             "plugin": "@nx/vitest",
-            "options": { "testTargetName": "test", "ciTargetName": "test-ci", "testMode": "watch" }
+            "options": { "testTargetName": "test", "ciTargetName": "test-ci", "testMode": "watch" },
+            "exclude": ["apps/backend-e2e/**/*"]
         },
         { "plugin": "@nx/playwright/plugin", "options": { "targetName": "e2e" } },
         {
