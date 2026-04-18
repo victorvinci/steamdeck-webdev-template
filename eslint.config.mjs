@@ -8,8 +8,10 @@ export default [
         ignores: [
             '**/dist',
             '**/out-tsc',
+            '**/storybook-static',
             '**/vite.config.*.timestamp*',
             '**/vitest.config.*.timestamp*',
+            '**/routeTree.gen.ts',
         ],
     },
     {
