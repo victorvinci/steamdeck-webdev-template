@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Changed** `.github/workflows/ci.yml` — replaced `paths-ignore` on the `pull_request` trigger with a `detect` job `code` output that gates all heavy jobs (check, build, e2e, commitlint, attribution-guard). Docs-only PRs now pay ~1 min (detect + ci-pass) instead of skipping the workflow entirely, which previously left branch protection stuck on "Waiting for status."
+- **Changed** `.github/workflows/ci.yml` — merged the standalone `build` job into `check` (now named "check & build") to eliminate a redundant checkout + `npm ci` cycle, saving ~1-2 min per CI run on GitHub free tier.
+- **Changed** `.github/workflows/ci.yml` — extracted the duplicated BASE SHA resolution logic (PR base / push-before / HEAD~1 fallback) into a reusable composite action at `.github/actions/resolve-nx-base/action.yml`, used by both the `check` and `e2e` jobs.
+- **Changed** `.github/workflows/ci.yml` — pinned `actions/checkout` in the `commitlint` job to SHA (`@34e114876b...`) matching all other checkout pins; was previously using the unpinned `@v4` tag, violating the repo's action pinning policy. Also removed a stale `# ADD THIS LINE BELOW` comment.
+- **Changed** `package.json` — removed deprecated `--all` flag from `lint`, `lint:fix`, `typecheck`, `test`, and `build` scripts; Nx 22+ defaults `run-many` to all projects.
+- **Changed** `nx.json` — added `namedInputs.production` excluding spec/test/story/jest config files, and updated `build` target defaults to use `production`/`^production` inputs for better cache hit rates.
+- **Changed** `eslint.config.mjs` — replaced the no-op `sourceTag: '*'` module boundary constraint with real `scope:frontend`, `scope:backend`, and `scope:shared` rules that enforce frontend cannot import backend code and vice versa.
+- **Changed** all `project.json` files — added `scope:frontend`, `scope:backend`, `scope:shared`, and `type:e2e` tags to enforce the new module boundary constraints.
+
+### Added
+
+- **Added** `.github/actions/resolve-nx-base/action.yml` — composite action that resolves the correct `--base` SHA for `nx affected` commands across PR, push, and first-push-of-new-branch scenarios.
+
 - **Added** re-enable the deployment tracking exclusively for the main branch.
 
 - **Added** `scripts/steamdeck/` — Steam Deck host-level utility scripts (`backup.sh`, `boot_sequence.sh`) with their own `README.md` files and a local `CHANGELOG.md`. `backup.sh` backs up dotfiles/configs/SSH keys/autostart entries/plugins to an external drive with SHA-256 verification and rotation; `boot_sequence.sh` is a KDE autostart helper that gates Proton Mail Bridge behind a fully-unlocked KeePassXC database to avoid silently rewriting `vault.enc` as unencrypted. Not wired into the project build — bundled so a freshly-reimaged Deck can clone this repo and restore its dev environment.

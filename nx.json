@@ -48,14 +48,27 @@
             "library": { "style": "css", "linter": "eslint" }
         }
     },
+    "namedInputs": {
+        "production": [
+            "default",
+            "!{projectRoot}/**/*.spec.ts",
+            "!{projectRoot}/**/*.spec.tsx",
+            "!{projectRoot}/**/*.test.ts",
+            "!{projectRoot}/**/*.test.tsx",
+            "!{projectRoot}/**/*.stories.ts",
+            "!{projectRoot}/**/*.stories.tsx",
+            "!{projectRoot}/jest.config.{ts,cts,mts}",
+            "!{projectRoot}/tsconfig.spec.json"
+        ]
+    },
     "targetDefaults": {
         "@nx/esbuild:esbuild": {
             "cache": true,
             "dependsOn": ["^build"],
-            "inputs": ["default", "^default"]
+            "inputs": ["production", "^production"]
         },
         "build": {
-            "inputs": ["default", "^default", { "env": "VITE_API_URL" }]
+            "inputs": ["production", "^production", { "env": "VITE_API_URL" }]
         }
     }
 }

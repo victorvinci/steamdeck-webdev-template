@@ -16,12 +16,12 @@
         "fe": "nx serve frontend",
         "be": "nx serve backend",
         "storybook": "nx storybook frontend",
-        "lint": "nx run-many --target=lint --all",
-        "lint:fix": "nx run-many --target=lint --all --fix",
+        "lint": "nx run-many --target=lint",
+        "lint:fix": "nx run-many --target=lint --fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "typecheck": "nx run-many --target=typecheck --all",
-        "test": "nx run-many --target=test --all",
+        "typecheck": "nx run-many --target=typecheck",
+        "test": "nx run-many --target=test",
         "test:fe": "nx test frontend",
         "test:be": "nx test backend",
         "test:types": "nx test types",
@@ -32,7 +32,7 @@
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
         "check:affected": "npm run format:check && nx affected -t lint typecheck test",
         "dev": "npm run setup && nx run-many --target=serve --projects=frontend,backend --parallel",
-        "build": "npm run check && nx run-many --target=build --all"
+        "build": "npm run check && nx run-many --target=build"
     },
     "devDependencies": {
         "@commitlint/cli": "^19.5.0",

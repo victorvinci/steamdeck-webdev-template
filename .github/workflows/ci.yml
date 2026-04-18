@@ -41,26 +41,15 @@ on:
             # still trigger CI because paths-ignore only skips when EVERY
             # changed path matches.
             - '.ai-attribution.jsonl'
-    # No paths-ignore here: when a PR's push touches only ignored paths,
-    # GitHub skips the workflow entirely and `ci-pass` never posts, which
-    # leaves branch protection stuck on "Waiting for status to be reported"
-    # and blocks the merge. PRs always run CI; the push-to-main/develop
-    # block above still skips docs-only merges to save minutes.
+    # No paths-ignore on PRs: when a PR touches only ignored paths, GitHub
+    # skips the workflow entirely and `ci-pass` never posts, which leaves
+    # branch protection stuck on "Waiting for status to be reported." The
+    # detect job's `code` output gates the heavy jobs instead — docs-only
+    # PRs pay only ~1 min (detect + ci-pass) while branch protection stays
+    # unblocked. The push-to-main/develop block above still uses
+    # paths-ignore because there's no branch-protection gate on pushes.
     pull_request:
         types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-        paths-ignore:
-            - '**.md'
-            - 'LICENSE'
-            - '.gitignore'
-            - '.editorconfig'
-            - '.vscode/**'
-            - 'docs/**'
-            # Standalone attribution-only pushes (the second commit of the
-            # two-commit flow when pushed on its own) shouldn't burn a CI
-            # run. Bundled pushes that touch real code alongside this file
-            # still trigger CI because paths-ignore only skips when EVERY
-            # changed path matches.
-            - '.ai-attribution.jsonl'
 
 # Scheduled jobs (npm audit, license scan, outdated deps, bundle-size budget,
 # stale branch sweep) live in .github/workflows/ci-scheduled.yml so this file
@@ -97,14 +86,19 @@ env:
 jobs:
     # ---------- change detection ----------
 
-    # Detects whether frontend-relevant paths changed in this push/PR. Used to
-    # skip storybook-build and lighthouse on backend-only / shared-only / lib-
-    # only changes, which would otherwise burn ~5 min per push doing nothing.
+    # Detects whether code or frontend-relevant paths changed in this push/PR.
+    #
+    # `code`     — gates all heavy jobs (check, build, e2e, commitlint,
+    #              attribution-guard). Docs-only PRs skip them and only pay
+    #              for detect + ci-pass (~1 min), keeping branch protection
+    #              happy without burning free-tier minutes.
+    # `frontend` — additionally gates storybook-build on backend-only changes.
     detect:
         name: detect changed paths
         runs-on: ubuntu-latest
         timeout-minutes: 3
         outputs:
+            code: ${{ steps.filter.outputs.code }}
             frontend: ${{ steps.filter.outputs.frontend }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -112,6 +106,15 @@ jobs:
               uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
               with:
                   filters: |
+                      code:
+                        - 'apps/**'
+                        - 'libs/**'
+                        - 'package.json'
+                        - 'package-lock.json'
+                        - 'nx.json'
+                        - 'tsconfig*.json'
+                        - '.nvmrc'
+                        - '.github/**'
                       frontend:
                         - 'apps/frontend/**'
                         - 'apps/frontend-e2e/**'
@@ -126,10 +129,18 @@ jobs:
     # ---------- quality ----------
 
     check:
-        name: check (format / lint / typecheck / test)
-        # Skip on draft PRs. The `ready_for_review` trigger fires when the
-        # PR leaves draft, so the full gate still runs before merge.
-        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+        name: check & build
+        needs: detect
+        # Skip on draft PRs and docs-only PRs (no code paths changed).
+        # The `ready_for_review` trigger fires when the PR leaves draft,
+        # so the full gate still runs before merge.
+        #
+        # Quality gates (format, lint, typecheck, test) and build are
+        # merged into one job to avoid paying for a second checkout +
+        # npm ci on a fresh runner (~1-2 min saved per run on free tier).
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
@@ -144,41 +155,44 @@ jobs:
 
             - run: npm run format:check
 
+            - name: Resolve NX base
+              id: nx-base
+              uses: ./.github/actions/resolve-nx-base
+              with:
+                  pr-base: ${{ github.event.pull_request.base.sha }}
+                  push-before: ${{ github.event.before }}
+
             - name: nx affected — lint / typecheck / test
-              env:
-                  PR_BASE: ${{ github.event.pull_request.base.sha }}
-                  PUSH_BEFORE: ${{ github.event.before }}
-              run: |
-                  # PR → use the PR base. Push → use the pre-push SHA
-                  # (github.event.before), which is correct for squash-
-                  # merges and force-pushes where HEAD~1 lies. First push
-                  # of a new branch reports all-zero before — fall back
-                  # to HEAD~1.
-                  BASE="$PR_BASE"
-                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
-                    BASE="$PUSH_BEFORE"
-                  fi
-                  if [ -n "$BASE" ]; then
-                    npx nx affected -t lint typecheck test --parallel=3 --base="$BASE" --head=HEAD
-                  else
-                    npx nx affected -t lint typecheck test --parallel=3 --base=HEAD~1
-                  fi
+              run: npx nx affected -t lint typecheck test --parallel=3 --base="${{ steps.nx-base.outputs.base }}" --head=HEAD
+
+            - name: nx affected — build
+              run: npx nx affected -t build --parallel=3 --base="${{ steps.nx-base.outputs.base }}" --head=HEAD
 
             - name: Self-Healing CI (on failure)
               if: failure()
               run: npx nx fix-ci
 
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: dist
+                  path: dist
+                  if-no-files-found: ignore
+                  retention-days: 7
+
     commitlint:
         name: commitlint (PR title)
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+        needs: detect
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - uses: ./.github/actions/setup-node-deps
             - name: Lint PR title
               env:
-                  # ADD THIS LINE BELOW
                   GH_TOKEN: ${{ github.token }}
               run: |
                   LATEST_TITLE=$(gh pr view ${{ github.event.pull_request.number }} --json title -q .title)
@@ -187,7 +201,11 @@ jobs:
 
     attribution-guard:
         name: attribution guard
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+        needs: detect
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
@@ -210,46 +228,6 @@ jobs:
                     fi
                   fi
 
-    # ---------- build ----------
-
-    build:
-        name: build
-        needs: check
-        # Skip on draft PRs. `check` is already gated, so `needs: check`
-        # would skip this job transitively, but the explicit condition
-        # makes the intent visible in the job list.
-        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
-        steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-              with:
-                  fetch-depth: 0
-            - uses: ./.github/actions/setup-node-deps
-            - name: nx affected — build
-              env:
-                  PR_BASE: ${{ github.event.pull_request.base.sha }}
-                  PUSH_BEFORE: ${{ github.event.before }}
-              run: |
-                  BASE="$PR_BASE"
-                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
-                    BASE="$PUSH_BEFORE"
-                  fi
-                  if [ -n "$BASE" ]; then
-                    npx nx affected -t build --parallel=3 --base="$BASE" --head=HEAD
-                  else
-                    npx nx affected -t build --parallel=3 --base=HEAD~1
-                  fi
-            - name: Self-Healing CI (on failure)
-              if: failure()
-              run: npx nx fix-ci
-            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-              with:
-                  name: dist
-                  path: dist
-                  if-no-files-found: ignore
-                  retention-days: 7
-
     storybook-build:
         name: storybook build
         needs: [check, detect]
@@ -269,11 +247,15 @@ jobs:
 
     e2e:
         name: e2e
-        needs: build
+        needs: [detect, check]
         # PR-only: e2e already ran on the PR before the squash-merge landed,
         # so skipping on push-to-main/develop avoids double-counting ~10 min of
         # Playwright + MySQL runtime against the monthly free-tier budget.
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+        # Also skipped on docs-only PRs (no code paths changed).
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 30
         container:
@@ -344,26 +326,24 @@ jobs:
             # backend boots) or lsof (used by backend-e2e's globalTeardown
             # to free port 3000 — without it the teardown logs a noisy
             # "lsof: not found" warning, harmless but noisy).
+            #
+            # TODO: build a custom Docker image extending the Playwright
+            # image with mysql-client + lsof pre-installed, hosted on GHCR.
+            # That would save the ~30s apt-get penalty on every e2e run.
             - name: Install mysql client and lsof
               run: |
                   apt-get update
                   apt-get install -y --no-install-recommends default-mysql-client lsof
             - name: Load schema and seed data
               run: mysql -h mysql -u app -papp app < db/schema.sql
+            - name: Resolve NX base
+              id: nx-base
+              uses: ./.github/actions/resolve-nx-base
+              with:
+                  pr-base: ${{ github.event.pull_request.base.sha }}
+                  push-before: ${{ github.event.before }}
             - name: nx affected — e2e
-              env:
-                  PR_BASE: ${{ github.event.pull_request.base.sha }}
-                  PUSH_BEFORE: ${{ github.event.before }}
-              run: |
-                  BASE="$PR_BASE"
-                  if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
-                    BASE="$PUSH_BEFORE"
-                  fi
-                  if [ -n "$BASE" ]; then
-                    npx nx affected -t e2e --parallel=1 --base="$BASE" --head=HEAD
-                  else
-                    npx nx affected -t e2e --parallel=1 --base=HEAD~1
-                  fi
+              run: npx nx affected -t e2e --parallel=1 --base="${{ steps.nx-base.outputs.base }}" --head=HEAD
             - name: Self-Healing CI (on failure)
               if: failure()
               run: npx nx fix-ci
@@ -394,8 +374,8 @@ jobs:
         name: ci pass
         if: always()
         needs:
+            - detect
             - check
-            - build
             - storybook-build
             - e2e
             - commitlint
