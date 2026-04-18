@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Changed** `renovate.json` — split the combined patch+minor automerge rule: patch-only updates on stable (non-0.x) packages now automerge via squash PR when CI passes, while minor updates remain manual. Added `@types/node` pin to `<25` to match the Node 24 LTS runtime.
 - **Changed** `nx.json` — added `exclude: ["apps/backend-e2e/**/*"]` to the `@nx/vitest` plugin entry to match the existing Jest plugin exclusion, preventing phantom target inference on the Playwright-based e2e project.
 - **Changed** `eslint.config.mjs` — added `**/storybook-static` and `**/routeTree.gen.ts` to the global ignores so build artifacts and generated files don't trigger lint failures.
+
+### Added
+
+- **Added** `.gitattributes` — enforces LF line endings across the repo, marks binary files (images, fonts), and collapses generated files (`routeTree.gen.ts`, `package-lock.json`) in PR diffs via `linguist-generated`.
+- **Added** `.dockerignore` — excludes `node_modules`, build artifacts, `.git`, and secrets from Docker build context for future Dockerfiles.
+- **Changed** `.prettierignore` — added `storybook-static` and `build`, deduplicated redundant entries.
+- **Changed** `README.md` — updated tech stack to Node.js 24+ / Express 5, prerequisites to Node ≥24.0.0, added `.gitattributes` and `.dockerignore` to project structure tree.
 - **Changed** `.github/workflows/ci.yml` — replaced `paths-ignore` on the `pull_request` trigger with a `detect` job `code` output that gates all heavy jobs (check, build, e2e, commitlint, attribution-guard). Docs-only PRs now pay ~1 min (detect + ci-pass) instead of skipping the workflow entirely, which previously left branch protection stuck on "Waiting for status."
 - **Changed** `.github/workflows/ci.yml` — merged the standalone `build` job into `check` (now named "check & build") to eliminate a redundant checkout + `npm ci` cycle, saving ~1-2 min per CI run on GitHub free tier.
 - **Changed** `.github/workflows/ci.yml` — extracted the duplicated BASE SHA resolution logic (PR base / push-before / HEAD~1 fallback) into a reusable composite action at `.github/actions/resolve-nx-base/action.yml`, used by both the `check` and `e2e` jobs.

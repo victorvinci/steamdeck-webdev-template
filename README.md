@@ -46,7 +46,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 | ------------- | ----------------------------------------------------------- |
 | Monorepo      | [Nx](https://nx.dev)                                        |
 | Frontend      | React 19, TypeScript, Vite, TanStack Router, TanStack Query |
-| Backend       | Node.js 20+, Express 4, TypeScript                          |
+| Backend       | Node.js 24+, Express 5, TypeScript                          |
 | Database      | MySQL 8 (via `mysql2`)                                      |
 | Validation    | [Zod](https://zod.dev)                                      |
 | Security mw   | helmet, cors, express-rate-limit                            |
@@ -99,6 +99,8 @@ steamdeck-webdev-template/
 ├── renovate.json               # Renovate dependency automation (grouped by ecosystem)
 ├── lighthouserc.json           # Lighthouse CI assertions (weekly scheduled run)
 ├── commitlint.config.js        # Conventional Commits enforcement
+├── .gitattributes              # LF enforcement, binary markers, generated-file collapse
+├── .dockerignore               # Keeps Docker build context small for future Dockerfiles
 └── .env.example                # Template — copy to .env
 ```
 
@@ -106,7 +108,7 @@ steamdeck-webdev-template/
 
 ## Prerequisites
 
-- **Node.js** ≥ 20.12.0
+- **Node.js** ≥ 24.0.0
 - **npm** ≥ 10.0.0
 - **MySQL 8** — either via **Docker Compose** (default, recommended) or **natively-installed `mysqld`**. `npm run setup` auto-detects which path to use; see [Manual Setup](#manual-setup) for the native flow's requirements.
 

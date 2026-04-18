@@ -1,12 +1,10 @@
 # Add files here to ignore them from prettier formatting
-/dist
-/coverage
-/.nx/cache
-/.nx/workspace-data
 dist
+build
 node_modules
-.nx
 coverage
+.nx
+storybook-static
 routeTree.gen.ts
 
 # Append-only log — one JSON object per line, must not be reformatted.
