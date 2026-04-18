@@ -51,7 +51,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 | Validation    | [Zod](https://zod.dev)                                      |
 | Security mw   | helmet, cors, express-rate-limit                            |
 | Testing       | Vitest / Jest (unit), Playwright (e2e)                      |
-| Component dev | Storybook                                                   |
+| Component dev | Storybook (addon-a11y for accessibility audits)             |
 | Linting       | ESLint + Prettier                                           |
 
 ---
@@ -63,30 +63,43 @@ steamdeck-webdev-template/
 ├── apps/
 │   ├── frontend/               # React + Vite + TanStack Router
 │   │   ├── src/
-│   │   │   ├── lib/api.ts      # Axios client (reads VITE_API_URL)
-│   │   │   ├── routes/         # File-based routing
-│   │   │   └── main.tsx        # Entry
-│   │   └── .storybook/
-│   ├── frontend-e2e/           # Playwright
+│   │   │   ├── components/     # Presentational components (+ co-located *.stories.tsx)
+│   │   │   ├── lib/            # Axios client, env validation, query hooks
+│   │   │   ├── routes/         # File-based routing (TanStack Router)
+│   │   │   └── main.tsx        # Entry — React, Router, QueryClient setup
+│   │   └── .storybook/         # Storybook config (addon-a11y for accessibility audits)
+│   ├── frontend-e2e/           # Playwright e2e tests
 │   ├── backend/                # Express REST API
 │   │   └── src/
-│   │       ├── config/env.ts   # Zod-validated env
-│   │       ├── config/db.ts    # MySQL pool
-│   │       ├── middleware/     # errorHandler, notFound, validate
-│   │       ├── routes/         # /api/health, ...
-│   │       └── main.ts         # Entry (helmet, CORS, rate-limit, body limits)
-│   └── backend-e2e/            # Backend integration tests
+│   │       ├── config/         # env.ts (Zod-validated), db.ts (MySQL pool), logger.ts (Pino)
+│   │       ├── errors/         # AppError base class + HTTP subclasses
+│   │       ├── middleware/     # errorHandler, notFound, validate (Zod)
+│   │       ├── routes/         # /api/health, /api/users, …
+│   │       ├── services/       # Data access layer (SQL queries)
+│   │       └── main.ts         # Entry (helmet, CORS, rate-limit, graceful shutdown)
+│   └── backend-e2e/            # Backend integration tests (Jest)
 ├── libs/
-│   ├── types/                  # @mcb/types — shared Zod schemas + inferred types
+│   ├── types/                  # @mcb/types — shared Zod schemas + inferred TS types
 │   └── utils/                  # @mcb/utils — small dependency-free helpers
 ├── db/
-│   └── schema.sql              # Initial DB schema (auto-loaded by docker-compose)
-├── docker-compose.yml          # Local MySQL
-├── scripts/dev-setup.sh        # Idempotent dev bootstrap (auto-detects docker vs native mysqld)
-├── scripts/dev-setup-native.sh # Native MySQL fallback used when docker is unavailable
-├── .env.example                # Template — copy to .env
-├── nx.json                     # Nx workspace config
-└── eslint.config.mjs
+│   ├── migrations/             # Numbered SQL migration files (001_initial.sql, …)
+│   └── schema.sql              # Bootstrap script — aggregates migrations for first init
+├── scripts/
+│   ├── dev-setup.sh            # Idempotent dev bootstrap (auto-detects docker vs native mysqld)
+│   ├── dev-setup-native.sh     # Native MySQL fallback used when docker is unavailable
+│   └── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+├── .github/
+│   ├── actions/                # Reusable composite actions (setup-node-deps, resolve-nx-base)
+│   └── workflows/              # CI (ci.yml), scheduled checks (ci-scheduled.yml),
+│                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml)
+├── docker-compose.yml          # Local MySQL service
+├── nx.json                     # Nx workspace config (plugins, namedInputs, targetDefaults)
+├── tsconfig.base.json          # Root TypeScript config (path aliases: @mcb/types, @mcb/utils)
+├── eslint.config.mjs           # ESLint flat config (module boundary enforcement)
+├── renovate.json               # Renovate dependency automation (grouped by ecosystem)
+├── lighthouserc.json           # Lighthouse CI assertions (weekly scheduled run)
+├── commitlint.config.js        # Conventional Commits enforcement
+└── .env.example                # Template — copy to .env
 ```
 
 ---
@@ -214,6 +227,9 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | `npm run e2e`                  | All e2e suites (`frontend-e2e` + `backend-e2e`)                                                                                               |
 | `npm run e2e:fe`               | Frontend e2e only (Playwright)                                                                                                                |
 | `npm run e2e:be`               | Backend e2e only (Jest)                                                                                                                       |
+| **Database**                   |                                                                                                                                               |
+| `npm run migrate`              | Apply pending database migrations from `db/migrations/`                                                                                       |
+| `npm run migrate:status`       | Show which migrations are applied vs pending                                                                                                  |
 | **Build**                      |                                                                                                                                               |
 | `npm run build`                | Runs `check` first, then builds every project (outputs to `dist/`)                                                                            |
 | **Lifecycle hooks**            |                                                                                                                                               |
@@ -228,7 +244,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 
 - **Unit tests** live next to source as `*.spec.ts(x)` — Vitest in the frontend / `libs/types`, Jest in the backend / `libs/utils`.
 - **E2E tests** live in `apps/frontend-e2e` and `apps/backend-e2e` (Playwright).
-- **Storybook stories** are mandatory for every new frontend component (`*.stories.tsx`, co-located).
+- **Storybook stories** are mandatory for every new frontend component (`*.stories.tsx`, co-located). The `@storybook/addon-a11y` addon runs axe-core accessibility audits in the Storybook panel; core essentials (controls, actions, viewport, docs) are built into Storybook 10.
 
 ```bash
 npm test             # all unit tests
@@ -249,10 +265,9 @@ Three GitHub Actions workflows ship with the repo. Together they form a gating p
 
 Runs on every pull request (and on push to `main` / `develop` as the non-affected full variant). These jobs **gate** merges — a red check blocks the PR.
 
-- `detect` — computes `nx affected` inputs and path filters so downstream jobs can skip themselves on unrelated changes (e.g. docs-only PRs don't run e2e)
-- `check` — `format:check` + `nx affected -t lint typecheck test`, wrapped in an Nx Cloud CI run for distributed cache + self-healing
-- `build` — `nx affected -t build`, uploads `dist/` as an artifact
-- `storybook-build` — ensures every story still compiles
+- `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates all heavy jobs — docs-only PRs pay only ~1 min (detect + ci-pass) while branch protection stays unblocked
+- `check` — `format:check` + `nx affected -t lint typecheck test` + `nx affected -t build`, wrapped in an Nx Cloud CI run for distributed cache + self-healing. Uploads `dist/` as an artifact. Quality gates and build are merged into one job to avoid a redundant checkout + `npm ci` on a second runner
+- `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter)
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
 - `attribution-guard` — fails the PR if `apps/` or `libs/` changed without a `CHANGELOG.md` entry. A missing `.ai-attribution.jsonl` append is logged as a warning but does **not** block the PR — human contributors aren't required to append, the log only tracks AI-authored changes
@@ -310,21 +325,45 @@ Until step 2 is done, the filesystem cache described above still gives you most 
 
 ## Database
 
-- **Schema lives in `db/schema.sql`.** How it gets loaded depends on which setup path you used:
-    - **Docker path:** mounted into `/docker-entrypoint-initdb.d/`, so it's auto-loaded on the **first** `docker compose up mysql`. On subsequent runs the volume is reused and re-running won't re-apply the schema.
-    - **Native path:** `scripts/dev-setup-native.sh` pipes `db/schema.sql` through `mysql` on every invocation. `schema.sql` is idempotent (`CREATE TABLE IF NOT EXISTS` + `INSERT IGNORE`), so re-running `npm run setup` is safe but won't overwrite edited rows either.
-- **To reset the local database** (destroys data):
+### Schema and migrations
 
-    ```bash
-    # Docker path — wipes the container volume:
-    docker compose down -v && npm run setup
+Schema changes live in **`db/migrations/`** as numbered SQL files (`001_initial.sql`, `002_add_roles.sql`, …). The migration runner at `scripts/migrate.ts` tracks which files have been applied in a `schema_migrations` table and only runs new ones.
 
-    # Native path — drop the database and re-provision:
-    sudo mysql -e "DROP DATABASE steamdeck_dev;" && npm run setup
-    ```
+```bash
+npm run migrate          # apply all pending migrations
+npm run migrate:status   # show applied vs pending
+```
 
-- **No migration tool is bundled.** When you outgrow `schema.sql`, plug in [`db-migrate`](https://github.com/db-migrate/node-db-migrate), [`Knex migrations`](https://knexjs.org/guide/migrations.html), [`Prisma`](https://www.prisma.io/), or your tool of choice.
-- **Queries must use parameter placeholders** (`?` or `:named`). Never interpolate user input into SQL strings — `mysql2` is configured with `namedPlaceholders: true`.
+**How the schema gets loaded on first boot** depends on your setup path:
+
+- **Docker path:** `db/schema.sql` is mounted into `/docker-entrypoint-initdb.d/` and auto-loaded on the **first** `docker compose up mysql`. It aggregates all migrations and marks them as applied in `schema_migrations`, so a subsequent `npm run migrate` is a no-op.
+- **Native path:** `scripts/dev-setup-native.sh` pipes `db/schema.sql` through `mysql`. Same result — schema created, migrations marked as applied.
+- **CI:** the e2e job loads `db/schema.sql` into the MySQL service container before tests run.
+
+**After first boot**, use `npm run migrate` to apply new migration files. When you add a migration, also append its SQL to `db/schema.sql` and add an `INSERT IGNORE INTO schema_migrations` line so fresh databases stay in sync.
+
+### Adding a new migration
+
+1. Create `db/migrations/NNN_description.sql` (next number in sequence).
+2. Write idempotent SQL (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, etc.).
+3. Append the same SQL to `db/schema.sql` and add `INSERT IGNORE INTO schema_migrations (version) VALUES ('NNN_description.sql');`.
+4. Run `npm run migrate` locally to apply it.
+
+### Resetting the local database
+
+Destroys all data:
+
+```bash
+# Docker path — wipes the container volume:
+docker compose down -v && npm run setup
+
+# Native path — drop the database and re-provision:
+sudo mysql -e "DROP DATABASE steamdeck_dev;" && npm run setup
+```
+
+### Query safety
+
+**Queries must use parameter placeholders** (`?` or `:named`). Never interpolate user input into SQL strings — `mysql2` is configured with `namedPlaceholders: true`.
 
 ---
 
@@ -374,7 +413,7 @@ Generic checklist — adapt to your platform of choice.
 
 6. **Serve the frontend as static files** behind a CDN (Cloudflare, CloudFront, Fastly). The frontend is a pure SPA — no Node runtime needed for the FE.
 
-7. **Run database migrations** as part of your deploy pipeline (see [Database](#database)).
+7. **Run database migrations** as part of your deploy pipeline: `npm run migrate` (see [Database](#database)).
 
 8. **Monitor:** wire `/api/health` to your platform's health check.
 

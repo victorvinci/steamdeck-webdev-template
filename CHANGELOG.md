@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Added** `.github/actions/resolve-nx-base/action.yml` — composite action that resolves the correct `--base` SHA for `nx affected` commands across PR, push, and first-push-of-new-branch scenarios.
+- **Added** root-level `errorComponent` and `notFoundComponent` to `apps/frontend/src/routes/__root.tsx` — previously an unhandled error in any route crashed the app to a white screen; now renders a user-friendly message with a retry button. 404s show a "Page not found" screen with a home link.
+- **Added** `@storybook/addon-a11y` to `apps/frontend/.storybook/main.ts` — enables accessibility audits (axe-core) in Storybook's addon panel. Core essentials (controls, actions, viewport, docs) are built into Storybook 10 and don't need a separate addon.
+- **Added** lightweight database migration system: `db/migrations/` for numbered SQL files, `scripts/migrate.ts` as the runner, `npm run migrate` and `npm run migrate:status` scripts. The runner tracks applied migrations in a `schema_migrations` table. `db/schema.sql` updated to bootstrap migrations on first init (docker-compose + CI).
 
 - **Added** re-enable the deployment tracking exclusively for the main branch.
 

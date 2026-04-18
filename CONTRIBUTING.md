@@ -33,6 +33,7 @@ Additional expectations:
 - **Every new frontend component needs a Storybook story** (`*.stories.tsx`, co-located) covering at least the default state plus any meaningful variants.
 - **Every new backend route needs integration coverage** in `apps/backend-e2e` — happy path plus at least one validation failure.
 - **Shared types and Zod schemas live in `libs/types`.** Never duplicate a request/response type across the frontend and backend.
+- **Database schema changes go through `db/migrations/`.** Add a new numbered SQL file, append it to `db/schema.sql`, and run `npm run migrate`. See [Database](./README.md#database) for the full workflow.
 - **Update `CHANGELOG.md`** under `## [Unreleased]` with a one-line entry describing user-facing impact. Use Keep-a-Changelog section headings (`Added`, `Changed`, `Fixed`, `Removed`, `Security`).
 - **Never commit `.env`** or anything else containing secrets.
 
