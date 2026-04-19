@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed** `.github/workflows/ci.yml` — corrected stale `.storybook/**` path in the `frontend` detect filter to `apps/frontend/.storybook/**` (Storybook config actually lives inside the frontend app, not the repo root). Changes to Storybook config will now correctly trigger the `storybook-build` job.
 - **Fixed** `.github/workflows/ci.yml` — pass MySQL password via `MYSQL_PWD` env var in the e2e job's "Load schema" step instead of `-papp` on the command line, suppressing the `mysql: [Warning] Using a password on the command line interface can be insecure` noise.
 - **Fixed** stale documentation across `CONTRIBUTING.md`, `CLAUDE.md`, `README.md`, `.claude/agents/backend-api.md`, and `.claude/agents/test-writer.md` — corrected `backend-e2e` test runner from Playwright to Jest, and updated branch instructions to target `develop` (integration branch) instead of `main` (release branch).
+- **Fixed** `apps/frontend/src/routes/__root.tsx` — removed incorrect `role="alert"` from `<main>` element in the error component. The landmark role should not be overridden by an alert role on a full-page error.
+- **Fixed** `apps/backend/src/config/db.ts` — added pool-level error handler so unhandled database connection errors are logged instead of crashing the process.
+- **Fixed** `apps/backend-e2e/tsconfig.spec.json` — corrected include from `jest.config.ts` to `jest.config.cts` to match the actual filename.
 
 ### Changed
 
