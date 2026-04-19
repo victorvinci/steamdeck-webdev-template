@@ -19,9 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed** `.github/workflows/pages.yml` — added Nx Cloud kill switch (`NX_CLOUD_ACCESS_TOKEN` / `NX_NO_CLOUD`) so Pages deploys don't fail when the free-plan credits are exhausted.
 - **Fixed** `.github/workflows/pages.yml` — corrected truncated SHA for `actions/deploy-pages@v4` (was `…fd0d31`, correct is `…c03e`), which caused the deploy job to fail with "unable to find version".
 - **Fixed** `apps/frontend/src/main.tsx` — set TanStack Router `basepath` to `import.meta.env.BASE_URL` so the app resolves routes correctly on GitHub Pages (served under `/<repo>/` subpath) instead of showing a 404.
+- **Fixed** `apps/frontend/src/routes/__root.tsx` — replaced `<a href="/">` with TanStack Router `<Link to="/">` in the not-found component so "Go home" respects the basepath on GitHub Pages.
 
 ### Changed
 
+- **Changed** `apps/frontend/src/routes/index.tsx` — replaced the API-fetching home page with a static welcome page so the GitHub Pages demo doesn't show a network error. The users list moved to a new `/users` route (`apps/frontend/src/routes/users.tsx`). Updated `apps/frontend-e2e/src/example.spec.ts` to match.
 - **Changed** `.github/workflows/force-draft.yml` — added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env for consistency with the other workflow files.
 - **Changed** `renovate.json` — added `customManagers` to track the Playwright Docker image tag in `ci.yml` and npx-pinned packages (`license-checker-rseidelsohn`, `@lhci/cli`) in `ci-scheduled.yml`, so Renovate auto-bumps them instead of requiring manual updates.
 
