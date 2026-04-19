@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-19
+
+### Added
+
+- **Added** `docs/RELEASE.md` — documents the end-to-end release workflow (branch from develop, two-commit AI-attribution flow, squash into develop, rebase into main, tag + GitHub release, post-release sync back to develop). Codifies the rules enforced by the `develop`, `main`, and `release-tags` rulesets so future releases follow a single pattern.
+
 ### Fixed
 
 - **Fixed** `.github/actions/setup-node-deps/action.yml` — pinned `actions/setup-node` and `actions/cache` to commit SHAs instead of mutable `@v4` tags, closing the last gap in the SHA-pinning policy stated in `ci.yml`.
