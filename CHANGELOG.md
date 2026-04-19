@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** `.github/actions/setup-node-deps/action.yml` — pinned `actions/setup-node` and `actions/cache` to commit SHAs instead of mutable `@v4` tags, closing the last gap in the SHA-pinning policy stated in `ci.yml`.
+- **Fixed** `.github/workflows/ci.yml` — corrected stale `.storybook/**` path in the `frontend` detect filter to `apps/frontend/.storybook/**` (Storybook config actually lives inside the frontend app, not the repo root). Changes to Storybook config will now correctly trigger the `storybook-build` job.
+- **Fixed** `.github/workflows/ci.yml` — pass MySQL password via `MYSQL_PWD` env var in the e2e job's "Load schema" step instead of `-papp` on the command line, suppressing the `mysql: [Warning] Using a password on the command line interface can be insecure` noise.
+
 ### Changed
+
+- **Changed** `.github/workflows/force-draft.yml` — added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env for consistency with the other workflow files.
+- **Changed** `renovate.json` — added `customManagers` to track the Playwright Docker image tag in `ci.yml` and npx-pinned packages (`license-checker-rseidelsohn`, `@lhci/cli`) in `ci-scheduled.yml`, so Renovate auto-bumps them instead of requiring manual updates.
 
 - **Changed** `.nvmrc` and `package.json` — bumped Node.js from 20 (EOL) to **24 LTS** (24.15.0). Updated `engines.node` to `>=24.0.0` and `@types/node` to 24.x.
 - **Changed** `package.json` — major dependency bumps: `express` 4→**5** (async error forwarding, read-only `req.query`), `esbuild` 0.27→**0.28**, `@commitlint/*` 19→**20**, `lint-staged` 15→**16**, `eslint-plugin-react-hooks` 5→**7** (flat config default), `eslint-plugin-playwright` 1→**2**, `jsonc-eslint-parser` 2→**3** (ESM-only). Minor/patch bumps for `eslint-plugin-import`, `eslint-plugin-jsx-a11y`, `eslint-plugin-react`, `@testing-library/dom`, `@testing-library/react`, `jiti`, `prettier`, `ts-node`.

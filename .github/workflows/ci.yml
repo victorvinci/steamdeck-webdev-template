@@ -119,7 +119,7 @@ jobs:
                         - 'apps/frontend/**'
                         - 'apps/frontend-e2e/**'
                         - 'libs/**'
-                        - '.storybook/**'
+                        - 'apps/frontend/.storybook/**'
                         - 'package.json'
                         - 'package-lock.json'
                         - 'nx.json'
@@ -335,7 +335,9 @@ jobs:
                   apt-get update
                   apt-get install -y --no-install-recommends default-mysql-client lsof
             - name: Load schema and seed data
-              run: mysql -h mysql -u app -papp app < db/schema.sql
+              env:
+                  MYSQL_PWD: app
+              run: mysql -h mysql -u app app < db/schema.sql
             - name: Resolve NX base
               id: nx-base
               uses: ./.github/actions/resolve-nx-base

@@ -52,6 +52,27 @@
             "allowedVersions": "<25"
         }
     ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "Playwright Docker image in CI",
+            "fileMatch": ["^\\.github/workflows/ci\\.yml$"],
+            "matchStrings": [
+                "image:\\s*mcr\\.microsoft\\.com/playwright:v(?<currentValue>[\\d.]+)-jammy"
+            ],
+            "depNameTemplate": "mcr.microsoft.com/playwright",
+            "datasourceTemplate": "docker",
+            "versioningTemplate": "semver"
+        },
+        {
+            "customType": "regex",
+            "description": "npx-pinned packages in scheduled CI",
+            "fileMatch": ["^\\.github/workflows/ci-scheduled\\.yml$"],
+            "matchStrings": ["npx --yes (?<depName>@?[\\w/-]+)@(?<currentValue>[\\d.x]+)"],
+            "datasourceTemplate": "npm",
+            "versioningTemplate": "semver"
+        }
+    ],
     "vulnerabilityAlerts": {
         "labels": ["security"],
         "automerge": false

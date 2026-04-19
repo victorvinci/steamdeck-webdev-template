@@ -15,6 +15,11 @@ on:
 permissions:
     pull-requests: write
 
+env:
+    # Opt in to Node.js 24 for JavaScript actions ahead of the June 2026
+    # forced cutover. See ci.yml for the full rationale.
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
     convert-to-draft:
         name: Convert PR to Draft
