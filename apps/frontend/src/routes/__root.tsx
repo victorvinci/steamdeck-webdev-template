@@ -9,7 +9,7 @@ function RootErrorComponent({ error }: { error: Error }) {
     const router = useRouter();
 
     return (
-        <main role="alert">
+        <main>
             <h1>Something went wrong</h1>
             <p>{error.message}</p>
             <button type="button" onClick={() => router.invalidate()}>

@@ -38,6 +38,9 @@ permissions:
 env:
     HUSKY: '0'
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    # Kill switch for Nx Cloud. See ci.yml for the full rationale.
+    NX_CLOUD_ACCESS_TOKEN: ${{ vars.NX_CLOUD_ENABLED == 'true' && secrets.NX_CLOUD_ACCESS_TOKEN || '' }}
+    NX_NO_CLOUD: ${{ vars.NX_CLOUD_ENABLED == 'true' && 'false' || 'true' }}
 
 jobs:
     build:
