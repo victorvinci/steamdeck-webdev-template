@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Changed** `docs/RELEASE.md` step 9 (post-release sync) — replaced the `git merge --no-ff origin/main` approach (which creates a merge commit and violates develop's `required_linear_history` rule) with `git push origin origin/main:develop --force-with-lease`, a one-shot fast-forward of develop to main's rebased tip. Requires admin bypass of `non_fast_forward` on develop — documented as a deliberate once-per-release action.
+- **Changed** `develop` and `main` rulesets — removed `Convert PR to Draft` from `required_status_checks`. The workflow is `opened`-only and never reruns on `synchronize`, so treating it as a required check left new pushes blocked by an unsatisfiable "Expected" status. The workflow still runs on freshly opened PRs; it just no longer gates merges. `docs/RELEASE.md` ruleset table updated to match.
 
 ### Fixed
 

@@ -19,9 +19,11 @@ Summary of what's enforced; see the GitHub repo rulesets page for the authoritat
 
 | Ruleset        | Target               | Approvals | Merge method | Other                                                    |
 | -------------- | -------------------- | --------- | ------------ | -------------------------------------------------------- |
-| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, `ci pass` + `Convert PR to Draft`        |
+| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, `ci pass` required                       |
 | `main`         | `refs/heads/main`    | 1         | rebase       | CODEOWNERS, `require_last_push_approval`, `update` block |
 | `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                   |
+
+The `Convert PR to Draft` workflow still runs on freshly opened PRs (saving CI minutes until the author marks ready), but is **not** a required status check — it's a one-shot side-effect on `opened`, so making it a gate would leave new commits blocked by an unsatisfiable pending check.
 
 The `main` ruleset grants repo admins `bypass_mode: always`, which is how a solo maintainer can merge the `develop → main` PR without a second reviewer. Bypass is an explicit choice — click **Merge anyway** on the PR, not a habit.
 
