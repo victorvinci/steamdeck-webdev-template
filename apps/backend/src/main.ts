@@ -75,7 +75,11 @@ app.use('/api', usersRouter);
 app.use(notFound);
 app.use(errorHandler);
 
-const server = app.listen(env.PORT, env.HOST, () => {
+const server = app.listen(env.PORT, env.HOST, (err?: Error) => {
+    if (err) {
+        logger.fatal({ err }, 'failed to start server');
+        process.exit(1);
+    }
     logger.info(`ready on http://${env.HOST}:${env.PORT}`);
 });
 

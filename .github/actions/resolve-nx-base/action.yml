@@ -1,0 +1,45 @@
+# Resolves the base SHA for `nx affected` commands.
+#
+# Centralises the PR-vs-push-vs-first-push logic that was previously
+# copy-pasted across check, build, and e2e jobs.
+
+name: Resolve NX Base
+description: Determines the base SHA for nx affected commands
+
+inputs:
+    pr-base:
+        description: 'PR base SHA (github.event.pull_request.base.sha)'
+        required: false
+        default: ''
+    push-before:
+        description: 'Pre-push SHA (github.event.before)'
+        required: false
+        default: ''
+
+outputs:
+    base:
+        description: 'Resolved base ref for --base flag'
+        value: ${{ steps.resolve.outputs.base }}
+
+runs:
+    using: composite
+    steps:
+        - id: resolve
+          shell: bash
+          env:
+              PR_BASE: ${{ inputs.pr-base }}
+              PUSH_BEFORE: ${{ inputs.push-before }}
+          run: |
+              # PR → use the PR base. Push → use the pre-push SHA
+              # (github.event.before), which is correct for squash-
+              # merges and force-pushes where HEAD~1 lies. First push
+              # of a new branch reports all-zero before — fall back
+              # to HEAD~1.
+              BASE="$PR_BASE"
+              if [ -z "$BASE" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+                BASE="$PUSH_BEFORE"
+              fi
+              if [ -z "$BASE" ]; then
+                BASE="HEAD~1"
+              fi
+              echo "base=$BASE" >> "$GITHUB_OUTPUT"

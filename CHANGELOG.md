@@ -7,7 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** `.github/actions/setup-node-deps/action.yml` — pinned `actions/setup-node` and `actions/cache` to commit SHAs instead of mutable `@v4` tags, closing the last gap in the SHA-pinning policy stated in `ci.yml`.
+- **Fixed** `.github/workflows/ci.yml` — corrected stale `.storybook/**` path in the `frontend` detect filter to `apps/frontend/.storybook/**` (Storybook config actually lives inside the frontend app, not the repo root). Changes to Storybook config will now correctly trigger the `storybook-build` job.
+- **Fixed** `.github/workflows/ci.yml` — pass MySQL password via `MYSQL_PWD` env var in the e2e job's "Load schema" step instead of `-papp` on the command line, suppressing the `mysql: [Warning] Using a password on the command line interface can be insecure` noise.
+
 ### Changed
+
+- **Changed** `.github/workflows/force-draft.yml` — added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env for consistency with the other workflow files.
+- **Changed** `renovate.json` — added `customManagers` to track the Playwright Docker image tag in `ci.yml` and npx-pinned packages (`license-checker-rseidelsohn`, `@lhci/cli`) in `ci-scheduled.yml`, so Renovate auto-bumps them instead of requiring manual updates.
+
+- **Changed** `.nvmrc` and `package.json` — bumped Node.js from 20 (EOL) to **24 LTS** (24.15.0). Updated `engines.node` to `>=24.0.0` and `@types/node` to 24.x.
+- **Changed** `package.json` — major dependency bumps: `express` 4→**5** (async error forwarding, read-only `req.query`), `esbuild` 0.27→**0.28**, `@commitlint/*` 19→**20**, `lint-staged` 15→**16**, `eslint-plugin-react-hooks` 5→**7** (flat config default), `eslint-plugin-playwright` 1→**2**, `jsonc-eslint-parser` 2→**3** (ESM-only). Minor/patch bumps for `eslint-plugin-import`, `eslint-plugin-jsx-a11y`, `eslint-plugin-react`, `@testing-library/dom`, `@testing-library/react`, `jiti`, `prettier`, `ts-node`.
+- **Changed** `package.json` — moved `pino-pretty` from `dependencies` to `devDependencies` since it's only used in dev mode (`transport: isProd ? undefined : { target: 'pino-pretty' }`), keeping the production install leaner.
+- **Changed** `apps/backend/src/config/env.ts` — guard `dotenv/config` import behind a `NODE_ENV !== 'production'` check so it's a no-op in container environments that set env vars natively.
+- **Changed** `apps/backend/src/middleware/validate.ts` — store Zod-parsed query params in `res.locals.validatedQuery` instead of mutating `req.query` (read-only in Express 5).
+- **Changed** `apps/backend/src/routes/users.ts` — read validated query from `res.locals.validatedQuery`; dropped manual `try/catch` + `next(err)` wrapper since Express 5 auto-forwards rejected promises to the error handler.
+- **Changed** `apps/backend/src/main.ts` — `app.listen` callback now handles the `err` parameter added in Express 5.
+- **Changed** `renovate.json` — split the combined patch+minor automerge rule: patch-only updates on stable (non-0.x) packages now automerge via squash PR when CI passes, while minor updates remain manual. Added `@types/node` pin to `<25` to match the Node 24 LTS runtime.
+- **Changed** `nx.json` — added `exclude: ["apps/backend-e2e/**/*"]` to the `@nx/vitest` plugin entry to match the existing Jest plugin exclusion, preventing phantom target inference on the Playwright-based e2e project.
+- **Changed** `eslint.config.mjs` — added `**/storybook-static` and `**/routeTree.gen.ts` to the global ignores so build artifacts and generated files don't trigger lint failures.
+
+### Added
+
+- **Added** `.gitattributes` — enforces LF line endings across the repo, marks binary files (images, fonts), and collapses generated files (`routeTree.gen.ts`, `package-lock.json`) in PR diffs via `linguist-generated`.
+- **Added** `.dockerignore` — excludes `node_modules`, build artifacts, `.git`, and secrets from Docker build context for future Dockerfiles.
+- **Changed** `.prettierignore` — added `storybook-static` and `build`, deduplicated redundant entries.
+- **Changed** `README.md` — updated tech stack to Node.js 24+ / Express 5, prerequisites to Node ≥24.0.0, added `.gitattributes` and `.dockerignore` to project structure tree.
+- **Changed** `.github/workflows/ci.yml` — replaced `paths-ignore` on the `pull_request` trigger with a `detect` job `code` output that gates all heavy jobs (check, build, e2e, commitlint, attribution-guard). Docs-only PRs now pay ~1 min (detect + ci-pass) instead of skipping the workflow entirely, which previously left branch protection stuck on "Waiting for status."
+- **Changed** `.github/workflows/ci.yml` — merged the standalone `build` job into `check` (now named "check & build") to eliminate a redundant checkout + `npm ci` cycle, saving ~1-2 min per CI run on GitHub free tier.
+- **Changed** `.github/workflows/ci.yml` — extracted the duplicated BASE SHA resolution logic (PR base / push-before / HEAD~1 fallback) into a reusable composite action at `.github/actions/resolve-nx-base/action.yml`, used by both the `check` and `e2e` jobs.
+- **Changed** `.github/workflows/ci.yml` — pinned `actions/checkout` in the `commitlint` job to SHA (`@34e114876b...`) matching all other checkout pins; was previously using the unpinned `@v4` tag, violating the repo's action pinning policy. Also removed a stale `# ADD THIS LINE BELOW` comment.
+- **Changed** `package.json` — removed deprecated `--all` flag from `lint`, `lint:fix`, `typecheck`, `test`, and `build` scripts; Nx 22+ defaults `run-many` to all projects.
+- **Changed** `nx.json` — added `namedInputs.production` excluding spec/test/story/jest config files, and updated `build` target defaults to use `production`/`^production` inputs for better cache hit rates.
+- **Changed** `eslint.config.mjs` — replaced the no-op `sourceTag: '*'` module boundary constraint with real `scope:frontend`, `scope:backend`, and `scope:shared` rules that enforce frontend cannot import backend code and vice versa.
+- **Changed** all `project.json` files — added `scope:frontend`, `scope:backend`, `scope:shared`, and `type:e2e` tags to enforce the new module boundary constraints.
+
+### Added
+
+- **Added** `.github/actions/resolve-nx-base/action.yml` — composite action that resolves the correct `--base` SHA for `nx affected` commands across PR, push, and first-push-of-new-branch scenarios.
+- **Added** root-level `errorComponent` and `notFoundComponent` to `apps/frontend/src/routes/__root.tsx` — previously an unhandled error in any route crashed the app to a white screen; now renders a user-friendly message with a retry button. 404s show a "Page not found" screen with a home link.
+- **Added** `@storybook/addon-a11y` to `apps/frontend/.storybook/main.ts` — enables accessibility audits (axe-core) in Storybook's addon panel. Core essentials (controls, actions, viewport, docs) are built into Storybook 10 and don't need a separate addon.
+- **Added** lightweight database migration system: `db/migrations/` for numbered SQL files, `scripts/migrate.ts` as the runner, `npm run migrate` and `npm run migrate:status` scripts. The runner tracks applied migrations in a `schema_migrations` table. `db/schema.sql` updated to bootstrap migrations on first init (docker-compose + CI).
 
 - **Added** re-enable the deployment tracking exclusively for the main branch.
 

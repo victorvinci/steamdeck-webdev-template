@@ -1,0 +1,16 @@
+# Keep Docker build context small. If you add a Dockerfile for the
+# backend or frontend, this file prevents multi-hundred-MB copies.
+node_modules
+dist
+build
+.nx
+.git
+.husky
+.github
+.claude
+coverage
+storybook-static
+*.log
+.env
+.env.*
+!.env.example

@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { ListUsersQuerySchema, type ApiSuccess, type ListUsersResponse } from '@mcb/types';
+import {
+    ListUsersQuerySchema,
+    type ApiSuccess,
+    type ListUsersQuery,
+    type ListUsersResponse,
+} from '@mcb/types';
 import { validate } from '../middleware/validate';
 import { listUsers } from '../services/users.service';
 
@@ -8,18 +13,15 @@ const router = Router();
 /**
  * GET /api/users?limit=20&offset=0
  *
- * Full pattern: validate query params with a shared Zod schema, call the
- * service layer, wrap the result in the `ApiSuccess` envelope. Errors bubble
- * to `errorHandler` via `next`.
+ * Validate query params with a shared Zod schema, call the service layer,
+ * wrap the result in the `ApiSuccess` envelope. Express 5 auto-forwards
+ * rejected promises to `errorHandler` — no manual try/catch needed.
  */
-router.get('/users', validate(ListUsersQuerySchema, 'query'), async (req, res, next) => {
-    try {
-        const result = await listUsers(req.query as unknown as import('@mcb/types').ListUsersQuery);
-        const payload: ApiSuccess<ListUsersResponse> = { data: result };
-        res.json(payload);
-    } catch (err) {
-        next(err);
-    }
+router.get('/users', validate(ListUsersQuerySchema, 'query'), async (_req, res) => {
+    const query = res.locals.validatedQuery as ListUsersQuery;
+    const result = await listUsers(query);
+    const payload: ApiSuccess<ListUsersResponse> = { data: result };
+    res.json(payload);
 });
 
 export default router;
