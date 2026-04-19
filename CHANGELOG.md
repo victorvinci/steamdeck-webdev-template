@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Added** `docs/SEMVER.md` — explicit SemVer policy for the template, drawing the line between public contract (API envelope shapes, `libs/utils` signatures, Node engine range, AI attribution schema, release workflow) and internal surfaces (backend route implementations, frontend components, DB schema, specific domain types). Includes the explicit trigger list for major version bumps. Linked from `CONTRIBUTING.md` and `CLAUDE.md`.
+- **Added** `.github/workflows/pages.yml` — explanatory comment next to `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` matching the other workflows, so the env isn't a mystery when someone goes to remove it post–Node 24 cutover.
+- **Added** `.github/CODEOWNERS.txt` — comment explaining why the single catch-all rule is intentional (solo maintainer, `require_code_owner_review` satisfied) so future contributors don't "fix" it unnecessarily.
+
 ## [0.2.0] - 2026-04-19
 
 ### Added

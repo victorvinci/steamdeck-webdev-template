@@ -49,6 +49,8 @@ This repo tracks AI-written code in [`CLAUDE.md`](./CLAUDE.md) and [`.ai-attribu
 
 See [`docs/RELEASE.md`](./docs/RELEASE.md) for the full release flow (version bump, `develop → main` PR, tagging, GitHub Release, post-release sync).
 
+Breaking changes to any of the public surfaces listed in [`docs/SEMVER.md`](./docs/SEMVER.md) require a **major** version bump. When unsure, err on the side of calling it a major — the doc has the explicit trigger list.
+
 ## Reporting security issues
 
 **Please do not open public issues for security vulnerabilities.** Email the maintainer privately (see [`SECURITY.md`](./SECURITY.md)) so the fix can ship before the details are public.

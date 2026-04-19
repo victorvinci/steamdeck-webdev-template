@@ -46,6 +46,10 @@ Only drop to raw `npx nx ...` when no script covers what you need (e.g. `npx nx 
 
 For version bumps, releases, and the `develop → main → tag` flow, follow [`docs/RELEASE.md`](./docs/RELEASE.md). Do not invent your own bump sequence — the doc covers the branch model, the rulesets enforced at each step, and the post-release sync.
 
+## SemVer policy
+
+For whether a change is a major/minor/patch, consult [`docs/SEMVER.md`](./docs/SEMVER.md). It lists the explicit public-surface contract (envelope shapes, utility signatures, Node engine range, attribution schema, release workflow) and the major-version triggers. When in doubt, the doc says to err on the side of major — do that.
+
 ## AI attribution rule (IMPORTANT)
 
 We track AI-generated code in an append-only JSONL log at `/.ai-attribution.jsonl` — **not** via inline comments. Inline markers were tried first and proved too noisy; the log keeps source files clean while preserving provenance.
