@@ -6,7 +6,8 @@ Nx monorepo: React + Vite + TanStack Router frontend, Express backend, shared `t
 
 - `apps/frontend` — React app (Vite, TanStack Router, Storybook in `.storybook/`)
 - `apps/backend` — Express API (TypeScript, error classes in `errors/`, service layer in `services/`)
-- `apps/frontend-e2e`, `apps/backend-e2e` — Playwright e2e
+- `apps/frontend-e2e` — Playwright e2e
+- `apps/backend-e2e` — Jest integration tests
 - `libs/types` — shared TS types & Zod schemas (Vitest)
 - `libs/utils` — shared utilities (Jest)
 - `db/` — `schema.sql` (bootstrap aggregator) + `migrations/` (numbered SQL files)

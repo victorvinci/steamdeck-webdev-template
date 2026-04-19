@@ -249,7 +249,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 ## Testing
 
 - **Unit tests** live next to source as `*.spec.ts(x)` — Vitest in the frontend / `libs/types`, Jest in the backend / `libs/utils`.
-- **E2E tests** live in `apps/frontend-e2e` and `apps/backend-e2e` (Playwright).
+- **E2E tests** live in `apps/frontend-e2e` (Playwright) and `apps/backend-e2e` (Jest integration tests).
 - **Storybook stories** are mandatory for every new frontend component (`*.stories.tsx`, co-located). The `@storybook/addon-a11y` addon runs axe-core accessibility audits in the Storybook panel; core essentials (controls, actions, viewport, docs) are built into Storybook 10.
 
 ```bash
