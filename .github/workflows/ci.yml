@@ -88,11 +88,15 @@ jobs:
 
     # Detects whether code or frontend-relevant paths changed in this push/PR.
     #
-    # `code`     — gates all heavy jobs (check, build, e2e, commitlint,
-    #              attribution-guard). Docs-only PRs skip them and only pay
-    #              for detect + ci-pass (~1 min), keeping branch protection
-    #              happy without burning free-tier minutes.
+    # `code`     — gates all heavy jobs (check, build, e2e, commitlint).
+    #              Docs-only PRs skip them and only pay for detect +
+    #              attribution-guard + ci-pass (~1 min), keeping branch
+    #              protection happy without burning free-tier minutes.
     # `frontend` — additionally gates storybook-build on backend-only changes.
+    #
+    # Note: `attribution-guard` intentionally runs on every non-draft PR
+    # (not gated by `code`) — AI assistants can touch docs, workflows, or
+    # configs and still owe a JSONL entry per CLAUDE.md.
     detect:
         name: detect changed paths
         runs-on: ubuntu-latest
@@ -201,9 +205,11 @@ jobs:
 
     attribution-guard:
         name: attribution guard
-        needs: detect
+        # Runs on every non-draft PR — AI commits can touch any path
+        # (docs, workflows, configs), not just apps/libs, and all of those
+        # require a JSONL entry per CLAUDE.md. The CHANGELOG check inside
+        # the script still only fires on apps/libs changes.
         if: >-
-            needs.detect.outputs.code == 'true' &&
             github.event_name == 'pull_request' &&
             github.event.pull_request.draft == false
         runs-on: ubuntu-latest
@@ -215,16 +221,49 @@ jobs:
             - name: Enforce CHANGELOG + attribution log updates
               env:
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  # AI assistant Co-Authored-By patterns. Matches commits
+                  # where an AI pair-programmer contributed code — NOT
+                  # automation bots like dependabot/renovate/github-actions
+                  # (those do dep/ops automation, not code authorship, and
+                  # don't need JSONL entries). Extend this list as new
+                  # assistants are adopted — use a name prefix that appears
+                  # in the trailer's identifier portion.
+                  AI_TRAILER_REGEX: 'Co-Authored-By:[[:space:]]+(claude-|Claude[[:space:]]*<noreply@anthropic|gpt-[0-9]|openai-|gemini-|(github-)?copilot([-[]|[[:space:]])|cursor([-[]|[[:space:]])|devin([-[]|[[:space:]])|codex-)'
               run: |
+                  set -euo pipefail
+
                   CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+                  echo "=== Changed files ==="
                   echo "$CHANGED"
+
+                  # Check 1 — CHANGELOG update when code changes.
                   if echo "$CHANGED" | grep -qE '^(apps|libs)/'; then
                     if ! echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
                       echo "ERROR: apps/ or libs/ changed but CHANGELOG.md was not updated." >&2
                       exit 1
                     fi
-                    if ! echo "$CHANGED" | grep -q '^\.ai-attribution\.jsonl$'; then
-                      echo "WARNING: apps/ or libs/ changed but .ai-attribution.jsonl was not appended to." >&2
+                  fi
+
+                  # Check 2 — AI-attribution integrity. For every commit in
+                  # the PR that carries an AI Co-Authored-By trailer, the
+                  # PR must contain a net-new line in .ai-attribution.jsonl.
+                  # One entry can cover multiple work commits, so we don't
+                  # require a 1:1 match — just that *some* entry was added.
+                  AI_COMMITS=$(git log --format='%H %s' "$BASE_SHA"..HEAD --no-merges --extended-regexp --grep="$AI_TRAILER_REGEX" || true)
+                  if [ -n "$AI_COMMITS" ]; then
+                    echo "=== AI-assistant commits in this PR ==="
+                    echo "$AI_COMMITS"
+
+                    # Count added lines in .ai-attribution.jsonl (ignore
+                    # deletions and context; only net appends count).
+                    ADDED=$(git diff --numstat "$BASE_SHA"...HEAD -- .ai-attribution.jsonl | awk '{print $1}')
+                    ADDED=${ADDED:-0}
+                    echo "Net new .ai-attribution.jsonl lines: $ADDED"
+
+                    if [ "$ADDED" -eq 0 ]; then
+                      echo "ERROR: AI-assistant Co-Authored-By trailers detected on commits above, but .ai-attribution.jsonl has no new entries in this PR." >&2
+                      echo "Append one JSONL line per CLAUDE.md and push it as an attribution commit." >&2
+                      exit 1
                     fi
                   fi
 

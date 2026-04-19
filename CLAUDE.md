@@ -66,8 +66,7 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
     "model": "claude-opus-4-6",
     "scope": "short-slug",
     "description": "one-sentence summary",
-    "files": ["path/one.ts", "path/two.ts"],
-    "commit": "abc1234"
+    "files": ["path/one.ts", "path/two.ts"]
 }
 ```
 
@@ -76,20 +75,25 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
 - `scope` — short slug tying related changes together (e.g. `hardening-pass-0.1.0`, `add-auth`, `fix-health-route`).
 - `description` — one sentence, what changed and why.
 - `files` — every file the AI touched **in the work commit** (do NOT include `.ai-attribution.jsonl` itself — it lives in the follow-up commit).
-- `commit` — short SHA (7+ chars) of the commit containing the actual work, filled in by the agent **after** the work commit lands. See the two-commit flow below.
+
+**Why no `commit` field:** earlier versions of this schema had a `commit` field with the short SHA. It was removed in v0.3.0 (the "drop SHA from attribution" change) because squash-merge into develop and rebase-merge into main both rewrite SHAs, leaving stale references in the log. The authoritative signals are now:
+
+- `Co-Authored-By: claude-<model-id>` trailer in the commit message (durable — survives squash and rebase merges).
+- The JSONL entry's `scope` + `date` + `files` (durable — content travels with the file).
+
+To find the commit a JSONL entry corresponds to, run `git log --all --grep="Co-Authored-By: claude" --no-merges -- <file-from-files-list>` and cross-reference by date. Historical entries (pre-v0.3.0) may still include the `commit` field; leave them as-is — corrections go in new entries, not by editing old ones.
 
 **Two-commit flow (MANDATORY when committing):**
 
-A commit cannot reference its own SHA, so the JSONL entry is appended in a separate follow-up commit immediately after the work commit. This guarantees the `commit` field always points to a real, existing SHA — no `null`s, no off-by-one drift from amends.
+The JSONL entry is appended in a separate follow-up commit immediately after the work commit. This keeps the JSONL file touch out of the work commit's diff (so reviewers see code changes uncluttered) and keeps pushes bundled so CI runs once on both.
 
 When the user asks you to commit your work:
 
 1. **Work commit.** Stage and commit everything _except_ `.ai-attribution.jsonl`. The work commit must include `CHANGELOG.md` (per the CHANGELOG rule below) and use the standard `Co-Authored-By: <model-id>` trailer.
-2. **Capture the SHA.** Run `git rev-parse --short HEAD` immediately after step 1. That short SHA is what goes in the `commit` field.
-3. **Attribution commit.** Append the JSONL line with the SHA from step 2, then commit just `.ai-attribution.jsonl` with a short message like `chore(attribution): log <scope>`. Same `Co-Authored-By` trailer applies. **Do NOT add `[skip ci]` to this message** — GitHub checks `[skip ci]` only on the head commit of a push, so a `[skip ci]` marker on the attribution tip silently skips CI for the work commit underneath it in the bundled two-commit push. Standalone attribution-only pushes are already skipped via `paths-ignore: ['.ai-attribution.jsonl']` in `ci.yml` and `codeql.yml`, which correctly only skips when _every_ changed path matches — bundled pushes still trigger CI because the work commit touches non-ignored files.
-4. **Push both together** (a single `git push` after step 3 sends both commits).
+2. **Attribution commit.** Append the JSONL line, then commit just `.ai-attribution.jsonl` with a short message like `chore(attribution): log <scope>`. Same `Co-Authored-By` trailer applies. **Do NOT add `[skip ci]` to this message** — GitHub checks `[skip ci]` only on the head commit of a push, so a `[skip ci]` marker on the attribution tip silently skips CI for the work commit underneath it in the bundled two-commit push. Standalone attribution-only pushes are already skipped via `paths-ignore: ['.ai-attribution.jsonl']` in `ci.yml` and `codeql.yml`, which correctly only skips when _every_ changed path matches — bundled pushes still trigger CI because the work commit touches non-ignored files.
+3. **Push both together** (a single `git push` after step 2 sends both commits).
 
-If the user is _not_ asking you to commit (e.g. you're just editing files on a feature branch they'll commit themselves), append the JSONL line with `"commit": null` and let the human fill it in when they commit, or fill it in yourself in a follow-up turn after they confirm the SHA.
+If the user is _not_ asking you to commit (e.g. you're just editing files on a feature branch they'll commit themselves), append the JSONL line anyway — the human takes care of committing it when they commit their work.
 
 **Rules:**
 
@@ -97,7 +101,7 @@ If the user is _not_ asking you to commit (e.g. you're just editing files on a f
 - Never delete entries. This is an audit log, not scratch space. Corrections go in a new entry.
 - Do **not** add inline `// ai: …` comments in source files. The log is the single source of truth.
 - When multiple branches each append one line and hit a merge conflict, resolve by keeping both lines — not by picking one.
-- The attribution commit is intentionally tiny and outside the work commit. Do **not** try to amend the work commit to include the JSONL entry — amending changes the SHA and breaks the field you just wrote.
+- The attribution commit is intentionally tiny and outside the work commit. Do **not** try to amend the work commit to include the JSONL entry — keep the two commits separate so reviewers can see code changes without JSONL noise in the diff.
 
 Human contributors can read the log to see exactly what an AI touched and when. `jq` works natively on JSONL: `jq -s '.' .ai-attribution.jsonl` reads the whole file as an array.
 

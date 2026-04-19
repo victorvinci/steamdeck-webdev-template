@@ -104,12 +104,11 @@ The `Co-Authored-By` trailer is mandatory for AI-authored commits (see `CLAUDE.m
 
 ### 5. Attribution commit
 
-Capture the short SHA from the work commit and append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-vX.Y.Z`.
+Append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-vX.Y.Z`.
 
 ```sh
-SHA=$(git rev-parse --short HEAD)
-cat >> .ai-attribution.jsonl <<JSON
-{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-vX.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"],"commit":"$SHA"}
+cat >> .ai-attribution.jsonl <<'JSON'
+{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-vX.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"]}
 JSON
 git add .ai-attribution.jsonl
 git commit -m "chore(attribution): log release-vX.Y.Z
@@ -117,7 +116,7 @@ git commit -m "chore(attribution): log release-vX.Y.Z
 Co-Authored-By: claude-<model-id>"
 ```
 
-One line per entry — the file is in `.prettierignore` and must stay un-reformatted.
+One line per entry — the file is in `.prettierignore` and must stay un-reformatted. The `Co-Authored-By` trailer on the work commit is the durable audit signal; the JSONL entry carries the structured metadata (`scope`, `description`, `files`). No commit SHA is captured because squash- and rebase-merges rewrite it — see `CLAUDE.md` for the full rationale.
 
 ### 6. PR 1 — `chore/bump-vX.Y.Z` → `develop`
 
@@ -137,7 +136,7 @@ EOF
 )"
 ```
 
-Wait for `ci pass` and `Convert PR to Draft` to complete, then squash-merge via the GitHub UI (the only merge method develop allows). The attribution commit's `commit` field will no longer be reachable from `git log develop` after squash — the pre-squash SHA is preserved under the PR's "Commits" tab for auditability. This is an accepted tradeoff of squash-on-develop.
+Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only merge method develop allows). The squash rewrites the work commit's SHA — that's why the schema no longer carries a `commit` field. The `Co-Authored-By` trailer travels into the squashed commit message, and the pre-squash history is preserved under the PR's "Commits" tab for reference.
 
 ### 7. PR 2 — `develop` → `main`
 

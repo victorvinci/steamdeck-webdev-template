@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Changed** `.ai-attribution.jsonl` schema — removed the `commit` field. Squash-merge into develop and rebase-merge into main both rewrite SHAs, so every entry written pre-merge ended up pointing at an unreachable SHA. The authoritative audit signal is now the `Co-Authored-By: claude-<model-id>` trailer (durable across both merge strategies). The JSONL still carries `date`, `model`, `scope`, `description`, `files`. Historical entries with the old `commit` field are preserved as-is per the append-only rule — corrections go in new entries, not edits. `CLAUDE.md` schema section and two-commit flow rewritten; `docs/RELEASE.md` attribution step simplified (no more `git rev-parse --short HEAD` capture).
+- **Changed** `.github/workflows/ci.yml` — `attribution-guard` job now does trailer-based integrity checking. For every commit in the PR with an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex — extensible), the PR must contain at least one net-new line in `.ai-attribution.jsonl`. Missing entries now fail the build instead of warning. Automation bots (dependabot, renovate, github-actions) are explicitly excluded. The guard also now runs on every non-draft PR (previously gated to `apps/`/`libs/` changes), since AI commits can touch docs, workflows, or configs and still require attribution.
+
 ### Added
 
 - **Added** `docs/SEMVER.md` — explicit SemVer policy for the template, drawing the line between public contract (API envelope shapes, `libs/utils` signatures, Node engine range, AI attribution schema, release workflow) and internal surfaces (backend route implementations, frontend components, DB schema, specific domain types). Includes the explicit trigger list for major version bumps. Linked from `CONTRIBUTING.md` and `CLAUDE.md`.
