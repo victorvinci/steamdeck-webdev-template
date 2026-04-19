@@ -47,6 +47,8 @@ This repo tracks AI-written code in [`CLAUDE.md`](./CLAUDE.md) and [`.ai-attribu
 - Fill in the description with **what** changed and **why**. The CHANGELOG entry is not a substitute.
 - Tag reviewers once CI is green.
 
+See [`docs/RELEASE.md`](./docs/RELEASE.md) for the full release flow (version bump, `develop → main` PR, tagging, GitHub Release, post-release sync).
+
 ## Reporting security issues
 
 **Please do not open public issues for security vulnerabilities.** Email the maintainer privately (see [`SECURITY.md`](./SECURITY.md)) so the fix can ship before the details are public.

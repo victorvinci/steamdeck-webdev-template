@@ -181,13 +181,25 @@ The `awk` extracts the content between `## [X.Y.Z]` and the next `## [` header �
 
 ### 9. Post-release sync
 
-Bring `main`'s rebased commits back into `develop` so the two branches stay aligned (the rebase rewrites SHAs; merging main → develop replays those SHAs as part of develop's history).
+After step 7, `main` has rebased copies of each develop commit (new SHAs). Left alone, `develop` stays one commit "behind" `main` forever — the old develop SHAs are unreachable from `main` and vice versa, which GitHub reports as divergence on every subsequent `develop → main` PR.
+
+The fix is to fast-forward `develop` to `main`'s tip, which is a force-update from develop's perspective (since the rebased SHAs are a different chain). Merging `main` into `develop` would work but creates a merge commit, which violates develop's `required_linear_history` rule.
+
+```sh
+git fetch origin
+git push origin origin/main:develop --force-with-lease
+```
+
+This retargets `refs/heads/develop` on the remote to whatever `origin/main` currently points at. `--force-with-lease` makes the push refuse if someone else has pushed to develop since your last fetch — protecting against concurrent work.
+
+The `develop` ruleset blocks force-pushes (`non_fast_forward`), so this push requires admin bypass. It's a deliberate, infrequent action — once per release — not a habit.
+
+Once the push lands, pull locally so your working copy matches:
 
 ```sh
 git switch develop
-git pull --ff-only origin develop
-git merge --no-ff origin/main -m "chore: sync main after vX.Y.Z release"
-git push origin develop
+git fetch origin
+git reset --hard origin/develop
 ```
 
 ## Hotfix flow (for reference)
