@@ -2,6 +2,8 @@
 
 A full-stack Nx monorepo boilerplate with a React frontend, an Express backend, and MySQL — ready to fork for new projects.
 
+**Live demo:** [Frontend app](https://victorvinci.github.io/steamdeck-webdev-template/) · [Storybook](https://victorvinci.github.io/steamdeck-webdev-template/storybook/)
+
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 > **Built on a Steam Deck running SteamOS.** This template was developed end-to-end inside a **Linux Mint Distrobox container** on SteamOS, because SteamOS's root filesystem is immutable and read-only by default — you can't install system packages (node, mysql, docker) onto the host without unlocking it, and unlocking resets on every OS update. Running development inside Distrobox sidesteps that entirely: the container is a normal mutable Mint install with its own `/usr`, `/home`, and package manager, and the host stays pristine.
