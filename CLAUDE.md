@@ -6,7 +6,8 @@ Nx monorepo: React + Vite + TanStack Router frontend, Express backend, shared `t
 
 - `apps/frontend` — React app (Vite, TanStack Router, Storybook in `.storybook/`)
 - `apps/backend` — Express API (TypeScript, error classes in `errors/`, service layer in `services/`)
-- `apps/frontend-e2e`, `apps/backend-e2e` — Playwright e2e
+- `apps/frontend-e2e` — Playwright e2e
+- `apps/backend-e2e` — Jest integration tests
 - `libs/types` — shared TS types & Zod schemas (Vitest)
 - `libs/utils` — shared utilities (Jest)
 - `db/` — `schema.sql` (bootstrap aggregator) + `migrations/` (numbered SQL files)
@@ -28,6 +29,7 @@ Always prefer the npm scripts in `package.json` over raw `nx` invocations — th
 - All gates in one go: `npm run check` (format:check + lint + typecheck + test)
 - Affected-only gates: `npm run check:affected`
 - Build everything (runs `check` first): `npm run build`
+- Clean build artifacts: `npm run clean`
 - DB migrations: `npm run migrate` (apply pending) • `npm run migrate:status` (show applied vs pending)
 
 Only drop to raw `npx nx ...` when no script covers what you need (e.g. `npx nx affected -t lint test` during iteration). If you find yourself reaching for raw nx repeatedly, propose adding a script instead.

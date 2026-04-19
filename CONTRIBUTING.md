@@ -16,7 +16,7 @@ See [`README.md`](./README.md) for manual (non-Docker) setup.
 
 ## Branches and commits
 
-- Branch off `main`: `git checkout -b feat/<short-name>` or `fix/<short-name>`.
+- Branch off `develop`: `git checkout -b feat/<short-name>` or `fix/<short-name>`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`.
 - Keep commits focused — one logical change per commit beats one giant squash.
 
@@ -43,7 +43,7 @@ This repo tracks AI-written code in [`CLAUDE.md`](./CLAUDE.md) and [`.ai-attribu
 
 ## Pull requests
 
-- Open the PR against `main`.
+- Open the PR against `develop` (the integration branch). `main` is the release branch — PRs land there only via `develop → main` merges.
 - Fill in the description with **what** changed and **why**. The CHANGELOG entry is not a substitute.
 - Tag reviewers once CI is green.
 

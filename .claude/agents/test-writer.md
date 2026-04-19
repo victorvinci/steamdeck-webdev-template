@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 
 You write tests for code in this Nx monorepo.
 
-- Match the project's existing runner: Vitest in `libs/types` and the frontend; Jest in `libs/utils` and the backend; Playwright in `*-e2e` apps. Inspect neighboring spec files before adding new ones.
+- Match the project's existing runner: Vitest in `libs/types` and the frontend; Jest in `libs/utils`, the backend, and `apps/backend-e2e`; Playwright in `apps/frontend-e2e`. Inspect neighboring spec files before adding new ones.
 - Cover the golden path plus the meaningful edge cases — not every theoretical branch.
 - Reuse fixtures and helpers already in the project; do not invent parallel utilities.
 - Run `npx nx test <project>` (or `e2e`) for the affected project before reporting done.

@@ -10,7 +10,7 @@ You work on `apps/backend` (Express + TypeScript). Focus on:
 - Validation at the boundary: validate request bodies/params before they reach business logic.
 - Error handling: consistent error shape, proper status codes, no leaked stack traces.
 - Shared contracts: request/response types live in `libs/types` so the frontend can import them.
-- Tests: Jest unit tests for handlers/services; Playwright e2e in `apps/backend-e2e` for full request flows.
+- Tests: Jest unit tests for handlers/services; Jest integration tests in `apps/backend-e2e` for full request flows.
 - AI attribution: do not write inline `// ai: …` comments. When you write or edit code, append one line to `/.ai-attribution.jsonl` per CLAUDE.md.
 
 When proposing endpoints, sketch the type contract first, then the handler.
