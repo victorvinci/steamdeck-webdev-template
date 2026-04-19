@@ -1,40 +1,26 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { formatError } from '@mcb/utils';
-import { UsersList } from '../components/UsersList';
-import { useUsersQuery } from '../lib/api/users';
+import { createFileRoute, Link } from '@tanstack/react-router';
 
-/**
- * Home route — worked example of the full frontend data-fetching pattern:
- *
- *   - `useUsersQuery` wraps TanStack Query with a typed key factory.
- *   - Response is validated at the boundary with `ListUsersResponseSchema`.
- *   - Loading and error states are rendered inline.
- *   - The presentational `<UsersList>` component receives already-typed data.
- *
- * Copy this structure for every new feature: one hook per resource, one
- * route component that owns the loading/error UI, one pure component that
- * renders the happy path.
- */
 function Home() {
-    const { data, isPending, isError, error, refetch, isFetching } = useUsersQuery();
-
     return (
         <main>
             <h1>Steamdeck Webdev Template</h1>
-            <p>A minimal full-stack example. The list below is fetched from `/api/users`.</p>
+            <p>
+                A full-stack Nx monorepo boilerplate with React, Express, and MySQL — ready to fork
+                for new projects.
+            </p>
 
-            {isPending && <p role="status">Loading users…</p>}
+            <h2>What's included</h2>
+            <ul>
+                <li>React + Vite + TanStack Router frontend</li>
+                <li>Express 5 API backend</li>
+                <li>Shared TypeScript types &amp; Zod schemas</li>
+                <li>Storybook component library</li>
+                <li>Full CI/CD pipeline with GitHub Actions</li>
+            </ul>
 
-            {isError && (
-                <div role="alert">
-                    <p>Could not load users: {formatError(error)}</p>
-                    <button type="button" onClick={() => refetch()} disabled={isFetching}>
-                        Retry
-                    </button>
-                </div>
-            )}
-
-            {data && <UsersList users={data.users} total={data.total} />}
+            <p>
+                <Link to="/users">View users →</Link> (requires the backend to be running)
+            </p>
         </main>
     );
 }
