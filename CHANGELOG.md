@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed** `apps/backend-e2e/tsconfig.spec.json` — corrected include from `jest.config.ts` to `jest.config.cts` to match the actual filename.
 - **Fixed** `.github/workflows/pages.yml` — added Nx Cloud kill switch (`NX_CLOUD_ACCESS_TOKEN` / `NX_NO_CLOUD`) so Pages deploys don't fail when the free-plan credits are exhausted.
 - **Fixed** `.github/workflows/pages.yml` — corrected truncated SHA for `actions/deploy-pages@v4` (was `…fd0d31`, correct is `…c03e`), which caused the deploy job to fail with "unable to find version".
+- **Fixed** `apps/frontend/src/main.tsx` — set TanStack Router `basepath` to `import.meta.env.BASE_URL` so the app resolves routes correctly on GitHub Pages (served under `/<repo>/` subpath) instead of showing a 404.
 
 ### Changed
 
