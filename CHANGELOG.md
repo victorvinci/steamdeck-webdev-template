@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed** `apps/frontend/src/routes/__root.tsx` — removed incorrect `role="alert"` from `<main>` element in the error component. The landmark role should not be overridden by an alert role on a full-page error.
 - **Fixed** `apps/backend/src/config/db.ts` — added pool-level error handler so unhandled database connection errors are logged instead of crashing the process.
 - **Fixed** `apps/backend-e2e/tsconfig.spec.json` — corrected include from `jest.config.ts` to `jest.config.cts` to match the actual filename.
+- **Fixed** `.github/workflows/pages.yml` — added Nx Cloud kill switch (`NX_CLOUD_ACCESS_TOKEN` / `NX_NO_CLOUD`) so Pages deploys don't fail when the free-plan credits are exhausted.
 
 ### Changed
 
