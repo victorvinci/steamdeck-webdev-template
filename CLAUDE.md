@@ -42,6 +42,10 @@ Only drop to raw `npx nx ...` when no script covers what you need (e.g. `npx nx 
 - e2e changes go in the matching `*-e2e` app.
 - **Storybook stories are mandatory for every new frontend component.** Each new component under `apps/frontend` must ship with a co-located `*.stories.tsx` covering at least the default state and any meaningful variants (loading, error, empty, disabled, etc.). No story = the component is not done. This applies to AI-generated and human-written components alike.
 
+## Release workflow
+
+For version bumps, releases, and the `develop → main → tag` flow, follow [`docs/RELEASE.md`](./docs/RELEASE.md). Do not invent your own bump sequence — the doc covers the branch model, the rulesets enforced at each step, and the post-release sync.
+
 ## AI attribution rule (IMPORTANT)
 
 We track AI-generated code in an append-only JSONL log at `/.ai-attribution.jsonl` — **not** via inline comments. Inline markers were tried first and proved too noisy; the log keeps source files clean while preserving provenance.

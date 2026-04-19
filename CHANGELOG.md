@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Added** `docs/RELEASE.md` — documents the end-to-end release workflow (branch from develop, two-commit AI-attribution flow, squash into develop, rebase into main, tag + GitHub release, post-release sync back to develop). Codifies the rules enforced by the `develop`, `main`, and `release-tags` rulesets so future releases follow a single pattern.
+- **Added** pointer to `docs/RELEASE.md` from `CONTRIBUTING.md` (under Pull requests) and `CLAUDE.md` (new Release workflow section) so contributors and AI agents land on the release doc without hunting for it.
+
+### Changed
+
+- **Changed** `docs/RELEASE.md` step 9 (post-release sync) — replaced the `git merge --no-ff origin/main` approach (which creates a merge commit and violates develop's `required_linear_history` rule) with `git push origin origin/main:develop --force-with-lease`, a one-shot fast-forward of develop to main's rebased tip. Requires admin bypass of `non_fast_forward` on develop — documented as a deliberate once-per-release action.
 
 ### Fixed
 
