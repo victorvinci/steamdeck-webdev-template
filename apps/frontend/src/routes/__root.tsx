@@ -1,4 +1,4 @@
-import { createRootRouteWithContext, Outlet, useRouter } from '@tanstack/react-router';
+import { createRootRouteWithContext, Link, Outlet, useRouter } from '@tanstack/react-router';
 import { QueryClient } from '@tanstack/react-query';
 
 interface RouterContext {
@@ -24,7 +24,7 @@ function NotFoundComponent() {
         <main>
             <h1>Page not found</h1>
             <p>The page you were looking for does not exist.</p>
-            <a href="/">Go home</a>
+            <Link to="/">Go home</Link>
         </main>
     );
 }
