@@ -93,7 +93,8 @@ steamdeck-webdev-template/
 │   ├── pull_request_template.md
 │   ├── actions/                # Reusable composite actions (setup-node-deps, resolve-nx-base)
 │   └── workflows/              # CI (ci.yml), scheduled checks (ci-scheduled.yml),
-│                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml)
+│                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml),
+│                               #   GitHub Pages deploy (pages.yml)
 ├── docker-compose.yml          # Local MySQL service
 ├── nx.json                     # Nx workspace config (plugins, namedInputs, targetDefaults)
 ├── tsconfig.base.json          # Root TypeScript config (path aliases: @mcb/types, @mcb/utils)
@@ -294,6 +295,19 @@ Runs every Monday at 05:23 UTC, also `workflow_dispatch`-able on demand. Designe
 ### SAST (`.github/workflows/codeql.yml`)
 
 GitHub CodeQL on JS/TS. Runs on every PR and weekly via cron — **not** on push-to-main/develop, because in a PR-based workflow the PR run covers the same code and a post-merge re-run would just double-count minutes. `workflow_dispatch` is enabled so you can re-run manually without pushing an empty commit.
+
+### GitHub Pages (`.github/workflows/pages.yml`)
+
+Deploys the frontend app and Storybook as a static site on every push to `main`:
+
+| Path          | Content                                          |
+| ------------- | ------------------------------------------------ |
+| `/`           | Frontend app (Vite build with `--base=/<repo>/`) |
+| `/storybook/` | Storybook component library                      |
+
+**Setup (one-time):** Go to repo `Settings → Pages → Source` and select **GitHub Actions**. The first push to `main` after that provisions the `github-pages` environment automatically.
+
+> **Note:** The frontend is a static export — API calls won't work on GitHub Pages. The `VITE_API_URL` is set to a placeholder at build time to satisfy the Zod env validation.
 
 ### Repo-level security features
 

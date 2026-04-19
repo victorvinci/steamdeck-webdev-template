@@ -1,0 +1,84 @@
+# Deploy the frontend app and Storybook to GitHub Pages.
+#
+# The site is published at:
+#   https://<owner>.github.io/<repo>/           — frontend app
+#   https://<owner>.github.io/<repo>/storybook/ — Storybook
+#
+# Triggered on push to main only (after a PR merges). Can also be
+# triggered manually via workflow_dispatch for ad-hoc deploys.
+#
+# Prerequisites:
+#   1. Go to repo Settings → Pages → Source → select "GitHub Actions".
+#   2. Push to main. The first run provisions the gh-pages environment.
+
+name: Deploy to GitHub Pages
+
+on:
+    push:
+        branches: [main]
+        paths-ignore:
+            - '**.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.editorconfig'
+            - '.vscode/**'
+            - 'docs/**'
+            - '.ai-attribution.jsonl'
+    workflow_dispatch:
+
+concurrency:
+    group: pages
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+env:
+    HUSKY: '0'
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+
+            - name: Build frontend
+              env:
+                  # Satisfy the frontend Zod env validation. On GitHub Pages
+                  # the app is static so API calls won't work, but without
+                  # this the build throws and the page never paints.
+                  VITE_API_URL: https://localhost:3000
+              # --base sets the public base path so assets resolve correctly
+              # under the GitHub Pages subpath (/<repo>/).
+              run: npx nx run frontend:build -- --base=/${{ github.event.repository.name }}/
+
+            - name: Build Storybook
+              run: npx nx run frontend:build-storybook
+
+            - name: Assemble site
+              run: |
+                  mkdir -p _site
+                  cp -r dist/apps/frontend/* _site/
+                  cp -r apps/frontend/storybook-static _site/storybook
+
+            - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+              with:
+                  path: _site
+
+    deploy:
+        name: Deploy
+        needs: build
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac553fd0d31 # v4

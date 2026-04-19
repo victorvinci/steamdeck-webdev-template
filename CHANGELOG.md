@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Added** `.github/pull_request_template.md` — lightweight PR checklist template (summary, test plan, notes).
 - **Added** `.github/ISSUE_TEMPLATE/bug_report.yml` and `feature_request.yml` — structured issue forms for bug reports and feature requests.
 - **Added** `npm run clean` script — removes `dist/`, `.nx/cache`, `storybook-static`, and `coverage` build artifacts.
+- **Added** `.github/workflows/pages.yml` — deploys frontend app and Storybook to GitHub Pages on push to `main`. Frontend is built with `--base=/<repo>/` for correct asset paths; Storybook is served under `/storybook/`.
 - **Added** `.gitattributes` — enforces LF line endings across the repo, marks binary files (images, fonts), and collapses generated files (`routeTree.gen.ts`, `package-lock.json`) in PR diffs via `linguist-generated`.
 - **Added** `.dockerignore` — excludes `node_modules`, build artifacts, `.git`, and secrets from Docker build context for future Dockerfiles.
 - **Changed** `.prettierignore` — added `storybook-static` and `build`, deduplicated redundant entries.
