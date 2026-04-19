@@ -89,6 +89,8 @@ steamdeck-webdev-template/
 │   ├── dev-setup-native.sh     # Native MySQL fallback used when docker is unavailable
 │   └── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
 ├── .github/
+│   ├── ISSUE_TEMPLATE/         # Bug report and feature request issue forms
+│   ├── pull_request_template.md
 │   ├── actions/                # Reusable composite actions (setup-node-deps, resolve-nx-base)
 │   └── workflows/              # CI (ci.yml), scheduled checks (ci-scheduled.yml),
 │                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml)
@@ -234,6 +236,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | `npm run migrate:status`       | Show which migrations are applied vs pending                                                                                                  |
 | **Build**                      |                                                                                                                                               |
 | `npm run build`                | Runs `check` first, then builds every project (outputs to `dist/`)                                                                            |
+| `npm run clean`                | Remove `dist/`, `.nx/cache`, `storybook-static`, and `coverage` build artifacts                                                               |
 | **Lifecycle hooks**            |                                                                                                                                               |
 | `npm run prepare`              | Installs Husky git hooks — runs automatically after `npm install`, you normally won't invoke it by hand                                       |
 | **Raw Nx escape hatches**      |                                                                                                                                               |

@@ -34,7 +34,8 @@
         "migrate": "tsx scripts/migrate.ts",
         "migrate:status": "tsx scripts/migrate.ts --status",
         "dev": "npm run setup && nx run-many --target=serve --projects=frontend,backend --parallel",
-        "build": "npm run check && nx run-many --target=build"
+        "build": "npm run check && nx run-many --target=build",
+        "clean": "rm -rf dist .nx/cache apps/frontend/storybook-static coverage"
     },
     "devDependencies": {
         "@commitlint/cli": "^20.5.0",

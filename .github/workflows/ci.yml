@@ -327,9 +327,9 @@ jobs:
             # to free port 3000 — without it the teardown logs a noisy
             # "lsof: not found" warning, harmless but noisy).
             #
-            # TODO: build a custom Docker image extending the Playwright
-            # image with mysql-client + lsof pre-installed, hosted on GHCR.
-            # That would save the ~30s apt-get penalty on every e2e run.
+            # Low priority: a custom Docker image (extending Playwright +
+            # mysql-client + lsof, hosted on GHCR) would save ~30s per e2e
+            # run. Not worth the maintenance overhead until e2e runs daily.
             - name: Install mysql client and lsof
               run: |
                   apt-get update
