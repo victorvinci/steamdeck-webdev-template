@@ -122,19 +122,10 @@ One line per entry — the file is in `.prettierignore` and must stay un-reforma
 
 ```sh
 git push -u origin chore/bump-vX.Y.Z
-gh pr create --base develop --title "chore(release): bump version to X.Y.Z" --body "$(cat <<'EOF'
-## Summary
-
-- Bumps version to X.Y.Z
-- Promotes `## [Unreleased]` → `## [X.Y.Z]` in CHANGELOG
-
-## Test plan
-
-- [x] `npm version` diff is limited to version fields
-- [x] CI green
-EOF
-)"
+gh pr create --base develop --title "chore(release): bump version to X.Y.Z" --template bump.md
 ```
+
+`--template bump.md` loads `.github/PULL_REQUEST_TEMPLATE/bump.md`, which enumerates the bump-specific checks (no dep drift, CHANGELOG promoted, attribution appended). Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
 
 Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only merge method develop allows). The squash rewrites the work commit's SHA — that's why the schema no longer carries a `commit` field. The `Co-Authored-By` trailer travels into the squashed commit message, and the pre-squash history is preserved under the PR's "Commits" tab for reference.
 
@@ -142,18 +133,10 @@ Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only me
 
 ```sh
 git switch develop && git pull --ff-only origin develop
-gh pr create --base main --head develop --title "release: vX.Y.Z" --body "$(cat <<'EOF'
-## Summary
-
-Release vX.Y.Z — see `CHANGELOG.md` for the full changelist.
-
-## Test plan
-
-- [x] CI green on develop
-- [x] Admin-bypass merge (main ruleset requires 1 approval; solo releases use the admin bypass granted by the ruleset)
-EOF
-)"
+gh pr create --base main --head develop --title "release: vX.Y.Z" --template release.md
 ```
+
+`--template release.md` loads `.github/PULL_REQUEST_TEMPLATE/release.md`, which covers the pre-merge checks, the rebase-merge note, and the post-merge tag/release/sync reminders. Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
 
 Wait for CI on this PR, then **Merge (rebase)** through the GitHub UI. Use the admin bypass prompt if you're the only maintainer. Each commit from develop replays onto main with a new SHA.
 
@@ -209,7 +192,7 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 
 1. Branch from `main` as `hotfix/<slug>`.
 2. Fix + CHANGELOG (under `[Unreleased]`) + attribution.
-3. PR `hotfix/<slug>` → `main` (rebase, admin bypass).
+3. PR `hotfix/<slug>` → `main` using the hotfix template (`gh pr create --base main --template hotfix.md`), rebase-merge via admin bypass.
 4. Tag `vX.Y.(Z+1)` and release.
 5. Back-merge `main` → `develop` so the fix isn't lost on the next release.
 
