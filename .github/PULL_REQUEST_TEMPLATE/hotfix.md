@@ -1,8 +1,10 @@
 <!--
   Title format: `hotfix: <short description>` (or `fix: <description>` if you prefer)
   Hotfix PRs branch from `main`, rebase-merge into `main`, and skip
-  `develop`. A back-merge into `develop` is required post-tag so the fix
-  isn't lost on the next release. See `docs/RELEASE.md` → "Hotfix flow".
+  `develop`. A cherry-pick sync PR into `develop` is required post-tag
+  (not a merge — develop's linear_history rule rejects merge commits).
+  See `docs/RELEASE.md` → "Hotfix flow" and use `hotfix-sync.md` for the
+  follow-up sync PR.
 
   Use via: `gh pr create --template hotfix.md` or append `?template=hotfix.md`
   to the compare URL.
@@ -40,4 +42,4 @@
 
 - [ ] Patch version bumped on `main` and tag pushed: `git tag -a vX.Y.(Z+1) -m "vX.Y.(Z+1)" && git push origin vX.Y.(Z+1)`
 - [ ] GitHub Release published (notes sourced from the `[Unreleased]` hotfix entry, which should then be promoted)
-- [ ] Back-merge `main` → `develop` so the fix isn't lost on the next release (see `docs/RELEASE.md` → "Hotfix flow" step 5)
+- [ ] Hotfix synced into `develop` via a cherry-pick PR using `hotfix-sync.md` — open it immediately after the tag is pushed. See `docs/RELEASE.md` → "Hotfix flow" step 5 for the full recipe.

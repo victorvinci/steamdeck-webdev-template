@@ -423,8 +423,13 @@ jobs:
             - attribution-guard
         runs-on: ubuntu-latest
         timeout-minutes: 2
-        # deployment trigger ONLY for the main branch
-        environment: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
+        # No `environment:` here — a prior version gated ci-pass behind
+        # an `environment: main` approval to act as a pre-merge deploy
+        # gate. That rule was removed (see docs/RELEASE.md → "Things
+        # this flow deliberately avoids") because it created a chicken-
+        # and-egg with the post-merge pages.yml deploy. The deployment
+        # still happens on push-to-main via pages.yml; ci-pass only has
+        # to report green/red for branch protection.
         steps:
             - name: Verify no upstream job failed or was cancelled
               env:

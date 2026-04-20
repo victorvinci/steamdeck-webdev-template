@@ -194,7 +194,23 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 2. Fix + CHANGELOG (under `[Unreleased]`) + attribution.
 3. PR `hotfix/<slug>` → `main` using the hotfix template (`gh pr create --base main --template hotfix.md`), rebase-merge via admin bypass.
 4. Tag `vX.Y.(Z+1)` and release.
-5. Back-merge `main` → `develop` so the fix isn't lost on the next release.
+5. Sync the fix into `develop` via a **cherry-pick PR** — not a merge. `develop`'s `required_linear_history` rule rejects merge commits, and `develop` will normally have diverged during the hotfix, so the release-PR fast-forward trick (`push origin/main:develop`) would discard develop's un-merged work. Use the cherry-pick flow instead:
+
+    ```sh
+    git switch develop && git pull --ff-only origin develop
+    git switch -c hotfix-sync/<slug>
+    # Identify the hotfix commit(s) landed on main. Usually one rebased commit.
+    git log main --not develop --oneline
+    # Cherry-pick each hotfix commit from main. Resolve CHANGELOG-section
+    # conflicts by keeping develop's existing [Unreleased] section and
+    # appending the hotfix bullet under it (the [X.Y.(Z+1)] header lives
+    # on main only).
+    git cherry-pick <hotfix-sha>
+    git push -u origin hotfix-sync/<slug>
+    gh pr create --base develop --template hotfix-sync.md
+    ```
+
+    The sync PR squash-merges into develop like any other feature PR. Open it immediately after the tag is pushed so the CHANGELOG and code stay aligned across branches. If the cherry-pick conflicts can't be resolved cleanly (large rewrites landed on develop since the hotfix branched), fall back to re-applying the fix by hand on a fresh branch off develop — whichever path is used, the sync PR template applies.
 
 ## Things this flow deliberately avoids
 
