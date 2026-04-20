@@ -27,13 +27,17 @@ if [ ! -f "$CHANGELOG" ]; then
 fi
 
 # awk: grab lines after `## [<VERSION>]`, stop at the next `## [` header.
+# Literal-string match via `index()` — `$0 ~ ...` would interpolate `ver`
+# into a regex, so a tag name containing `.`, `*`, `[`, etc. (release notes
+# input is maintainer-controlled but still worth making dumb-safe) would
+# match unintended sections or fail to match the intended one.
 # `found` flips to 1 when we see the target header, so we can detect
 # "no match" and fail loudly instead of silently emitting nothing.
 OUTPUT=$(awk -v ver="$VERSION" '
-    $0 ~ "^## \\[" ver "\\]" { grab = 1; found = 1; next }
-    grab && /^## \[/          { grab = 0 }
-    grab                      { print }
-    END                       { exit found ? 0 : 1 }
+    index($0, "## [" ver "]") == 1 { grab = 1; found = 1; next }
+    grab && /^## \[/                { grab = 0 }
+    grab                            { print }
+    END                             { exit found ? 0 : 1 }
 ' "$CHANGELOG")
 
 if [ $? -ne 0 ]; then

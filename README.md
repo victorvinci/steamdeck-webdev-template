@@ -432,6 +432,11 @@ Generic checklist — adapt to your platform of choice.
 
 5. **Terminate TLS at your reverse proxy / load balancer**, and forward `X-Forwarded-*` headers so Express sees the real client IP.
 
+    The backend calls `app.set('trust proxy', 1)` when `NODE_ENV=production` (see `apps/backend/src/main.ts`). The `1` is correct when there is **exactly one** proxy hop between the client and Node — the most common case (single ALB/ELB, single nginx, Fly/Render/Railway platform proxy). If your topology differs you **must** change the value, because Express uses it to decide which `X-Forwarded-For` entry to trust as the client IP — and `express-rate-limit` buckets requests by that IP, so a wrong value lets any client spoof their IP and bypass the rate limiter.
+    - **No proxy** (Node directly on the public internet — rare): set `trust proxy` to `false`. `req.ip` will then come from the TCP socket, not `X-Forwarded-For`.
+    - **Multiple proxies** (e.g. Cloudflare in front of nginx in front of Node): set to the exact hop count (`2` in that example) or use `'loopback, linklocal, uniquelocal'` plus any trusted upstream CIDRs. Do **not** use `true` — that trusts every hop, which is exactly the spoof path.
+    - See the [Express `trust proxy` docs](https://expressjs.com/en/guide/behind-proxies.html) for the full option list.
+
 6. **Serve the frontend as static files** behind a CDN (Cloudflare, CloudFront, Fastly). The frontend is a pure SPA — no Node runtime needed for the FE.
 
 7. **Run database migrations** as part of your deploy pipeline: `npm run migrate` (see [Database](#database)).

@@ -56,9 +56,11 @@
     "customManagers": [
         {
             "customType": "regex",
-            "description": "npx-pinned packages in scheduled CI",
-            "fileMatch": ["^\\.github/workflows/ci-scheduled\\.yml$"],
-            "matchStrings": ["npx --yes (?<depName>@?[\\w/-]+)@(?<currentValue>[\\d.x]+)"],
+            "description": "npx-pinned packages in CI workflows (scheduled + PR)",
+            "fileMatch": ["^\\.github/workflows/ci(-scheduled)?\\.yml$"],
+            "matchStrings": [
+                "npx --yes (?:--package )?(?<depName>@?[\\w/-]+)@(?<currentValue>[\\d.x]+)"
+            ],
             "datasourceTemplate": "npm",
             "versioningTemplate": "semver"
         }

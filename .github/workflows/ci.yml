@@ -292,6 +292,17 @@ jobs:
                       echo "Append one JSONL line per CLAUDE.md and push it as an attribution commit." >&2
                       exit 1
                     fi
+
+                    # Count alone is satisfiable by appending `{}` or a
+                    # truncated object — which silently weakens the audit log
+                    # CLAUDE.md promises. Pull the actual added lines and
+                    # require each to parse as JSON.
+                    ADDED_LINES=$(git diff --unified=0 "$BASE_SHA"...HEAD -- .ai-attribution.jsonl | awk '/^\+[^+]/ { sub(/^\+/, ""); print }')
+                    if [ -n "$ADDED_LINES" ] && ! printf '%s\n' "$ADDED_LINES" | jq -c . >/dev/null 2>&1; then
+                      echo "ERROR: one or more lines added to .ai-attribution.jsonl do not parse as JSON." >&2
+                      echo "Each line must be a single compact JSON object — see CLAUDE.md for the schema." >&2
+                      exit 1
+                    fi
                   fi
 
     # Blocks PRs that INTRODUCE a dep with a known high/critical advisory.
@@ -332,12 +343,11 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - uses: ./.github/actions/setup-node-deps
-            # renovate ships `renovate-config-validator` as a bin. No
-            # version pin — it's a config linter, we want the freshest
-            # validator. If install time ever becomes an issue, pin via
-            # a customManager entry in renovate.json (mirror the
-            # ci-scheduled.yml pattern).
-            - run: npx --yes --package renovate -- renovate-config-validator --strict
+            # renovate ships `renovate-config-validator` as a bin.
+            # Version is pinned so a compromised upstream release can't
+            # run arbitrary code inside this job on day zero. Bumped by
+            # Renovate itself via the customManager entry in renovate.json.
+            - run: npx --yes --package renovate@43.136.0 -- renovate-config-validator --strict
 
     storybook-build:
         name: storybook build
