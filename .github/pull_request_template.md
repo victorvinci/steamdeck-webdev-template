@@ -12,6 +12,8 @@
 - [ ] Tested locally in the browser (if UI change)
 - [ ] New/updated Storybook stories (if new component)
 - [ ] e2e tests pass (`npm run e2e`)
+- [ ] `CHANGELOG.md` updated under `## [Unreleased]`
+- [ ] `.ai-attribution.jsonl` appended if AI-assisted (see `CLAUDE.md` schema)
 
 ## Notes
 

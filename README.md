@@ -273,12 +273,12 @@ Three GitHub Actions workflows ship with the repo. Together they form a gating p
 
 Runs on every pull request (and on push to `main` / `develop` as the non-affected full variant). These jobs **gate** merges — a red check blocks the PR.
 
-- `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates all heavy jobs — docs-only PRs pay only ~1 min (detect + ci-pass) while branch protection stays unblocked
+- `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates the heavy jobs (`check`, `storybook-build`, `e2e`, `commitlint`) — docs-only PRs pay only ~1 min (detect + attribution-guard + ci-pass) while branch protection stays unblocked. `attribution-guard` intentionally isn't gated by `code`, since AI commits can touch docs/workflows/configs and still owe a JSONL entry
 - `check` — `format:check` + `nx affected -t lint typecheck test` + `nx affected -t build`, wrapped in an Nx Cloud CI run for distributed cache + self-healing. Uploads `dist/` as an artifact. Quality gates and build are merged into one job to avoid a redundant checkout + `npm ci` on a second runner
 - `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter)
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
-- `attribution-guard` — fails the PR if `apps/` or `libs/` changed without a `CHANGELOG.md` entry. A missing `.ai-attribution.jsonl` append is logged as a warning but does **not** block the PR — human contributors aren't required to append, the log only tracks AI-authored changes
+- `attribution-guard` — runs on every non-draft PR and enforces two rules. (1) If `apps/` or `libs/` changed, a `CHANGELOG.md` entry is required. (2) If any commit in the PR carries an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex, …), the PR must also contain at least one net-new line in `.ai-attribution.jsonl`. Human-only PRs don't need a JSONL append. Automation bots (dependabot, renovate, github-actions) are explicitly excluded from the trailer match
 - `ci-pass` — aggregator status check. Point branch protection at this single job instead of listing every job by name. It passes when every upstream job succeeded or was intentionally skipped (e.g. `storybook-build` on a backend-only PR), and fails if any upstream job failed or was cancelled.
 
 `storybook-build` and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
@@ -309,7 +309,7 @@ Deploys the frontend app and Storybook as a static site on every push to `main`:
 
 **Setup (one-time):** Go to repo `Settings → Pages → Source` and select **GitHub Actions**. The first push to `main` after that provisions the `github-pages` environment automatically.
 
-> **Note:** The frontend is a static export — API calls won't work on GitHub Pages. The `VITE_API_URL` is set to a placeholder at build time to satisfy the Zod env validation.
+> **Note:** The frontend is a static export — API calls won't work on GitHub Pages. The `VITE_API_URL` is set to a placeholder at build time (see the `env:` block on the `build-frontend` step in `.github/workflows/pages.yml`) to satisfy the Zod env validation.
 
 ### Repo-level security features
 
@@ -464,7 +464,7 @@ If you discover a vulnerability in this boilerplate, please **do not** open a pu
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full guide — branches, commits, testing expectations, and the Storybook / CHANGELOG / shared-types rules.
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full guide — branches, commits, testing expectations, and the Storybook / CHANGELOG / shared-types rules. Before proposing a breaking change, consult [`docs/SEMVER.md`](./docs/SEMVER.md) for the public-surface contract and major-version triggers.
 
 Security issues should be reported privately per [`SECURITY.md`](./SECURITY.md), **not** as public issues.
 

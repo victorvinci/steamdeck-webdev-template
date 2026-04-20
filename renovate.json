@@ -48,6 +48,7 @@
             "matchManagers": ["github-actions"]
         },
         {
+            "description": "Pin @types/node to match engines.node (>=24). When you bump the Node engine major, raise this cap in the same PR.",
             "matchPackageNames": ["@types/node"],
             "allowedVersions": "<25"
         }

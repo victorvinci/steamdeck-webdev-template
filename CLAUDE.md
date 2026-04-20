@@ -76,12 +76,12 @@ We track AI-generated code in an append-only JSONL log at `/.ai-attribution.json
 - `description` — one sentence, what changed and why.
 - `files` — every file the AI touched **in the work commit** (do NOT include `.ai-attribution.jsonl` itself — it lives in the follow-up commit).
 
-**Why no `commit` field:** earlier versions of this schema had a `commit` field with the short SHA. It was removed in v0.3.0 (the "drop SHA from attribution" change) because squash-merge into develop and rebase-merge into main both rewrite SHAs, leaving stale references in the log. The authoritative signals are now:
+**Why no `commit` field:** earlier versions of this schema had a `commit` field with the short SHA. It was dropped because squash-merge into develop and rebase-merge into main both rewrite SHAs, leaving stale references in the log. The authoritative signals are now:
 
 - `Co-Authored-By: claude-<model-id>` trailer in the commit message (durable — survives squash and rebase merges).
 - The JSONL entry's `scope` + `date` + `files` (durable — content travels with the file).
 
-To find the commit a JSONL entry corresponds to, run `git log --all --grep="Co-Authored-By: claude" --no-merges -- <file-from-files-list>` and cross-reference by date. Historical entries (pre-v0.3.0) may still include the `commit` field; leave them as-is — corrections go in new entries, not by editing old ones.
+To find the commit a JSONL entry corresponds to, run `git log --all --grep="Co-Authored-By: claude" --no-merges -- <file-from-files-list>` and cross-reference by date. Historical entries (from before the schema change) may still include the `commit` field; leave them as-is — corrections go in new entries, not by editing old ones.
 
 **Two-commit flow (MANDATORY when committing):**
 

@@ -29,4 +29,4 @@ Out of scope:
 
 ## Supported versions
 
-The boilerplate is pre-1.0. Only the latest tagged release on `main` receives security fixes.
+Only the latest tagged release on `main` receives security fixes. This is a fork-first template — downstream forks own their own supported-version policy.

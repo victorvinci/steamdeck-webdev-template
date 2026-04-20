@@ -33,7 +33,7 @@ The `engines.node` field in `package.json`. Bumping the **minimum major** (e.g. 
 
 ### The two-commit AI attribution flow + schema
 
-Documented in `CLAUDE.md`. The JSONL schema (`date`, `model`, `scope`, `description`, `files`, `commit`) is frozen. New fields can be added (minor); renaming or removing existing ones is a major.
+Documented in `CLAUDE.md`. The JSONL schema (`date`, `model`, `scope`, `description`, `files`) is frozen. New fields can be added (minor); renaming or removing existing ones is a major.
 
 ### The release workflow contract
 
