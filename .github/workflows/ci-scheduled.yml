@@ -19,9 +19,16 @@ on:
         - cron: '23 5 * * 1' # weekly Monday 05:23 UTC
     workflow_dispatch:
 
+# Two back-to-back `workflow_dispatch` runs (or a dispatch overlapping the
+# weekly cron) would otherwise race on the same tracking issues — each
+# job ends with an issue `create`/`update`, and two concurrent scripts
+# can clobber each other's bodies. `cancel-in-progress: true` drops the
+# older run the moment a newer one starts. Every job here is idempotent
+# (scanners re-run, issues are upsert-by-label), so cancellation is
+# safe — the next run will re-compute from scratch.
 concurrency:
     group: ${{ github.workflow }}
-    cancel-in-progress: false
+    cancel-in-progress: true
 
 permissions:
     contents: read

@@ -1,3 +1,14 @@
+<!--
+  This is the default PR template. For release-flow PRs, use a selectable one:
+    - bump.md        — chore/bump-vX.Y.Z  → develop
+    - release.md     — develop            → main
+    - hotfix.md      — hotfix/<slug>      → main
+    - hotfix-sync.md — hotfix-sync/<slug> → develop (cherry-pick post-tag)
+  Usage: `gh pr create --template <name>.md`
+         or append `?template=<name>.md` to the compare URL.
+  See docs/RELEASE.md for the full flow.
+-->
+
 ## Summary
 
 <!-- What does this PR do and why? 1-3 bullet points. -->
