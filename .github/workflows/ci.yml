@@ -267,6 +267,27 @@ jobs:
                     fi
                   fi
 
+    # Blocks PRs that INTRODUCE a dep with a known high/critical advisory.
+    # Dependabot Alerts fire post-merge — this catches it at PR time, before
+    # the vulnerable version lands on develop/main. Summary is posted as a PR
+    # comment only on failure (`on-failure`), so clean PRs stay quiet.
+    # Free on public repos; runs against the PR's head vs base ref.
+    dependency-review:
+        name: dependency review
+        needs: detect
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+              with:
+                  fail-on-severity: high
+                  comment-summary-in-pr: on-failure
+
     storybook-build:
         name: storybook build
         needs: [check, detect]
@@ -421,6 +442,7 @@ jobs:
             - e2e
             - commitlint
             - attribution-guard
+            - dependency-review
         runs-on: ubuntu-latest
         timeout-minutes: 2
         # No `environment:` here — a prior version gated ci-pass behind

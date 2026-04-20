@@ -17,11 +17,11 @@ feature/* ──▶ develop ──▶ main ──▶ tag vX.Y.Z
 
 Summary of what's enforced; see the GitHub repo rulesets page for the authoritative source.
 
-| Ruleset        | Target               | Approvals | Merge method | Other                                                    |
-| -------------- | -------------------- | --------- | ------------ | -------------------------------------------------------- |
-| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, `ci pass` required                       |
-| `main`         | `refs/heads/main`    | 1         | rebase       | CODEOWNERS, `require_last_push_approval`, `update` block |
-| `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                   |
+| Ruleset        | Target               | Approvals | Merge method | Other                                                                    |
+| -------------- | -------------------- | --------- | ------------ | ------------------------------------------------------------------------ |
+| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, signed commits, `ci pass` required                       |
+| `main`         | `refs/heads/main`    | 1         | rebase       | signed commits, CODEOWNERS, `require_last_push_approval`, `update` block |
+| `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                                   |
 
 The `Convert PR to Draft` workflow still runs on freshly opened PRs (saving CI minutes until the author marks ready), but is **not** a required status check — it's a one-shot side-effect on `opened`, so making it a gate would leave new commits blocked by an unsatisfiable pending check.
 
@@ -151,17 +151,15 @@ git push origin vX.Y.Z
 
 The `release-tags` ruleset activates on push — from now on the tag can't be deleted or moved without admin bypass.
 
-Publish the GitHub Release, auto-sourcing notes from the CHANGELOG section you just promoted:
+The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, and publishes the release with the SBOM attached as an asset. No manual `gh release create` needed.
+
+If the workflow fails (e.g. the CHANGELOG wasn't promoted before tagging and the fallback to auto-generated notes isn't what you want), you can re-run it from the Actions tab or publish manually:
 
 ```sh
-awk -v ver="X.Y.Z" '
-  $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
-  grab && /^## \[/          { exit }
-  grab                      { print }
-' CHANGELOG.md | gh release create vX.Y.Z --title "vX.Y.Z" --notes-file -
+./scripts/extract-changelog-section.sh X.Y.Z | gh release create vX.Y.Z --title "vX.Y.Z" --notes-file -
 ```
 
-The `awk` extracts the content between `## [X.Y.Z]` and the next `## [` header — the section body only, without the header itself, which `gh release create` renders separately via `--title`.
+The script prints the content between `## [X.Y.Z]` and the next `## [` header — the section body only, without the header itself, which `gh release create` renders separately via `--title`.
 
 ### 9. Post-release sync
 

@@ -37,6 +37,19 @@ Additional expectations:
 - **Update `CHANGELOG.md`** under `## [Unreleased]` with a one-line entry describing user-facing impact. Use Keep-a-Changelog section headings (`Added`, `Changed`, `Fixed`, `Removed`, `Security`).
 - **Never commit `.env`** or anything else containing secrets.
 
+## Signing your commits
+
+Commits landing on `develop` and `main` must be signed. The branch rulesets require `Verified` on every commit, and unsigned commits are rejected at push/merge time.
+
+If you haven't set up signing on this machine yet:
+
+- **SSH key (simplest if you already push over SSH):** follow GitHub's [Telling Git about your signing key](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key) → "SSH" tab, then set `git config --global commit.gpgsign true` and `git config --global gpg.format ssh`. Upload the **same** SSH key under Settings → SSH and GPG keys → "New SSH key" with key type **Signing Key** (separate from the Authentication Key GitHub already trusts).
+- **GPG key (if your team already uses GPG):** same doc, "GPG" tab. Upload the public key under Settings → SSH and GPG keys → "New GPG key".
+
+Verify locally with `git log --show-signature -1` on your most recent commit — you should see `Good signature from ...`. Verify on GitHub by looking for the green **Verified** badge on the commit after pushing.
+
+AI-authored commits created by Claude Code (and similar assistants) sign with the contributor's configured key — the tool inherits the local `commit.gpgsign` setting, so enabling signing once covers human and AI commits alike.
+
 ## AI-assisted contributions
 
 This repo tracks AI-written code in [`CLAUDE.md`](./CLAUDE.md) and [`.ai-attribution.jsonl`](./.ai-attribution.jsonl). If you use an AI assistant to write or edit code in this repo, append one JSON line to the attribution log per the schema in `CLAUDE.md`, and make sure the `CHANGELOG.md` rule above is followed — the agent instructions under `.claude/agents/` already enforce this, but the rule applies to human contributors too.

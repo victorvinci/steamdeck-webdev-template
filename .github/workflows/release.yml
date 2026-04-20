@@ -1,0 +1,105 @@
+# Post-tag release automation.
+#
+# Fires when an annotated `vX.Y.Z` tag lands on `main` (see
+# `docs/RELEASE.md` step 8). Does three things, in order:
+#
+#   1. Extracts the matching `## [X.Y.Z]` section from CHANGELOG.md
+#      via `scripts/extract-changelog-section.sh` (the same script
+#      the release doc invokes as a manual fallback).
+#   2. Generates a CycloneDX SBOM for the repo with anchore/sbom-action.
+#      Gives downstream consumers a supply-chain manifest without
+#      re-running scanners themselves.
+#   3. Publishes a GitHub Release with the changelog section as notes
+#      and the SBOM attached as an asset.
+#
+# If the CHANGELOG extraction fails or returns empty (someone forgot to
+# promote `[Unreleased]` before tagging), the job falls back to GitHub's
+# auto-generated notes so the release still publishes. A warning is
+# logged so it gets fixed on the next cut.
+#
+# Action pinning policy:
+#   See ci.yml header. Pins are SHA + `# vX` comment for Renovate.
+
+name: Release
+
+on:
+    push:
+        tags:
+            - 'v*'
+
+permissions:
+    contents: read
+
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+    release:
+        name: publish github release
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        # `contents: write` is required to create the release and upload
+        # assets. No other scopes needed — we don't push, comment, or
+        # touch issues from this workflow.
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  # SBOM generator walks the lockfile; shallow clone is
+                  # enough, but anchore/sbom-action internally runs `git
+                  # ls-files` on some modes. Matches ci.yml's policy.
+                  fetch-depth: 1
+
+            - name: Extract CHANGELOG section
+              id: notes
+              env:
+                  TAG: ${{ github.ref_name }}
+              run: |
+                  set -euo pipefail
+                  VERSION="${TAG#v}"
+                  echo "Version: $VERSION"
+                  if ./scripts/extract-changelog-section.sh "$VERSION" > NOTES.md; then
+                      if [ -s NOTES.md ]; then
+                          echo "found=true" >> "$GITHUB_OUTPUT"
+                          echo "Extracted $(wc -l < NOTES.md) lines of release notes."
+                          exit 0
+                      fi
+                      echo "::warning::CHANGELOG section for $VERSION is empty — falling back to auto-generated notes."
+                  else
+                      echo "::warning::No CHANGELOG section for $VERSION — falling back to auto-generated notes."
+                  fi
+                  echo "found=false" >> "$GITHUB_OUTPUT"
+
+            - name: Generate SBOM (CycloneDX)
+              uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+              with:
+                  # CycloneDX is the de-facto standard consumers expect
+                  # from npm projects (Renovate, Dependabot, GH
+                  # dependency graph all speak it).
+                  format: cyclonedx-json
+                  output-file: sbom.cdx.json
+                  # Don't upload to the GH dependency-submission API —
+                  # that's for non-package-manager builds (Maven, Go)
+                  # where GH can't infer the graph. For npm projects
+                  # GH already parses package-lock.json natively, so
+                  # submitting a second source would create duplicate
+                  # alerts.
+                  upload-artifact: false
+                  upload-release-assets: false
+
+            - name: Publish GitHub Release
+              uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+              with:
+                  # Use the extracted notes when available; otherwise
+                  # fall through to `generate_release_notes` which asks
+                  # GitHub to diff against the previous tag.
+                  body_path: ${{ steps.notes.outputs.found == 'true' && 'NOTES.md' || '' }}
+                  generate_release_notes: ${{ steps.notes.outputs.found != 'true' }}
+                  files: sbom.cdx.json
+                  # The tag already exists (this workflow fires on tag
+                  # push), so don't let the action try to re-create or
+                  # move it.
+                  tag_name: ${{ github.ref_name }}
+                  name: ${{ github.ref_name }}
+                  fail_on_unmatched_files: true
