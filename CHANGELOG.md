@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed** L2 from `docs/SECURITY-AUDIT-v1.0.0.md` — `scripts/dev-setup-native.sh` now rejects `DB_PASSWORD` values containing a single quote, double quote, or backslash (previously only the single-quote case). Backslash is a MySQL escape char inside `'...'` under default `sql_mode`, so `\'` would previously break the `IDENTIFIED BY '${DB_PASSWORD}'` literal and set a wrong password.
 - **Fixed** `docker-compose.yml` M1 + M2 from `docs/SECURITY-AUDIT-v1.0.0.md`. Split the MySQL root password off the app password (`MYSQL_ROOT_PASSWORD` now reads `${DB_ROOT_PASSWORD}` instead of reusing `${DB_PASSWORD}`) and bound the published MySQL port to `127.0.0.1` instead of `0.0.0.0`, so the dev DB is no longer reachable from any network the host is attached to and a leaked app credential no longer grants MySQL root on the dev container. The healthcheck was switched from `-u root` to `-u ${DB_USER}` so it stays green without needing the root password at all (also lets operators later set `MYSQL_RANDOM_ROOT_PASSWORD=yes` if they want). `.env.example` gains a `DB_ROOT_PASSWORD` entry with a comment noting it must differ from `DB_PASSWORD`.
 
+### Fixed
+
+- **Fixed** `renovate.json` `customManagers[0]` — migrated deprecated `fileMatch` to `managerFilePatterns` (with regex delimiters `/.../`). Renovate 43.x treats the old key as "Config migration necessary", which fails the `renovate-config` CI job under `--strict`. No behavioral change — the pattern still matches `.github/workflows/ci.yml` and `ci-scheduled.yml`.
+
 ### Changed
 
 - **Changed** `CONTRIBUTING.md` "Before you open a PR" — added a bullet codifying the unit-test expectation for pure backend helpers (middleware, error classes, services without DB), pointing at `apps/backend/src/middleware/validate.spec.ts` as the reference pattern. Integration tests were already required via the adjacent bullet; the new rule makes the two layers explicit so future PRs don't skip one.
