@@ -13,7 +13,7 @@ export const usersKeys = {
     list: (limit: number, offset: number) => [...usersKeys.all, 'list', { limit, offset }] as const,
 };
 
-async function fetchUsers(limit: number, offset: number): Promise<ListUsersResponse> {
+export async function fetchUsers(limit: number, offset: number): Promise<ListUsersResponse> {
     const res = await api.get<ApiSuccess<ListUsersResponse>>('/api/users', {
         params: { limit, offset },
     });

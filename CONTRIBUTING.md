@@ -32,6 +32,7 @@ Additional expectations:
 
 - **Every new frontend component needs a Storybook story** (`*.stories.tsx`, co-located) covering at least the default state plus any meaningful variants.
 - **Every new backend route needs integration coverage** in `apps/backend-e2e` — happy path plus at least one validation failure.
+- **Pure backend helpers should ship unit tests next to source.** Middleware, error classes, and services that don't need a DB belong in Jest specs co-located with their source (e.g. `apps/backend/src/middleware/validate.spec.ts`). Integration tests are for wiring; unit tests are for branches. Do both when both apply.
 - **Shared types and Zod schemas live in `libs/types`.** Never duplicate a request/response type across the frontend and backend.
 - **Database schema changes go through `db/migrations/`.** Add a new numbered SQL file, append it to `db/schema.sql`, and run `npm run migrate`. See [Database](./README.md#database) for the full workflow.
 - **Update `CHANGELOG.md`** under `## [Unreleased]` with a one-line entry describing user-facing impact. Use Keep-a-Changelog section headings (`Added`, `Changed`, `Fixed`, `Removed`, `Security`).
@@ -67,3 +68,7 @@ Breaking changes to any of the public surfaces listed in [`docs/SEMVER.md`](./do
 ## Reporting security issues
 
 **Please do not open public issues for security vulnerabilities.** Email the maintainer privately (see [`SECURITY.md`](./SECURITY.md)) so the fix can ship before the details are public.
+
+## Code of Conduct
+
+Participation in this project is governed by the [Code of Conduct](./CODE_OF_CONDUCT.md). Report concerns privately per the contacts listed there.

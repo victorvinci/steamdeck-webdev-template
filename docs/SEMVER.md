@@ -43,7 +43,7 @@ Documented in `docs/RELEASE.md`. The branch model (`feature → develop (squash)
 
 These can change without a major bump. Forks that tweak these own the merge burden.
 
-- **Backend route implementations and URL shapes.** `/users`, `/health`, query param names, etc. The envelope is public; the specific endpoints are examples. A fork replacing `/users` with its own domain routes is expected behavior.
+- **Backend route implementations and URL shapes.** `/users`, `/health/{live,ready}`, query param names, etc. The envelope is public; the specific endpoints are examples. A fork replacing `/users` with its own domain routes is expected behavior.
 - **Frontend components, routes, and styling.** The template demonstrates patterns (TanStack Router, Storybook-per-component) but specific components in `apps/frontend/src/components/` aren't API.
 - **Specific domain types** like `User`, `ListUsersQuery`, `ListUsersResponse`. The **pattern** of Zod-as-source-of-truth is public (see above); the specific types are examples.
 - **DB schema and migrations.** Forks own their schema. The migration runner's CLI interface (`npm run migrate`) is public; the initial `db/schema.sql` is not.

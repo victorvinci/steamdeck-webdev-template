@@ -456,7 +456,7 @@ jobs:
             # documented in Playwright's "Run in CI" guide.
             options: --cap-add=SYS_ADMIN
         services:
-            # Real MySQL for backend-e2e (asserts /api/health → db: connected
+            # Real MySQL for backend-e2e (asserts /api/health/ready → db: connected
             # and reads seeded users from /api/users) and frontend-e2e (which
             # exercises the same users-from-backend flow). Service containers
             # share the job network when the job runs inside a container, so
