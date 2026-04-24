@@ -126,6 +126,8 @@ Co-Authored-By: claude-opus-4-6
 
 Use the actual model ID at runtime (`claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`, …) — do not guess. This is in addition to (not a replacement for) the `.ai-attribution.jsonl` log and the CHANGELOG entry. Human reviewers should be able to tell from `git log` alone which commits were AI-authored and by which model.
 
+**Leave a blank line before the trailer.** commitlint's `footer-leading-blank` rule warns when a `Co-Authored-By:` line is glued directly to the body. The warning is non-blocking (CI still passes; the `attribution-guard` job greps the whole message and doesn't care), but without the blank line `git interpret-trailers` and other trailer-aware tools won't parse the line as a footer. When writing a HEREDOC commit message, keep one empty line between the body and the `Co-Authored-By` line.
+
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
