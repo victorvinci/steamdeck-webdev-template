@@ -37,7 +37,10 @@ export default defineConfig({
         },
         {
             command: 'npx nx run backend:serve:development',
-            url: 'http://localhost:3000/api/health',
+            // Use /ready so the backend isn't marked up until the DB pool is
+            // actually reachable — prevents a race where tests hit /api/users
+            // before mysql2 has opened its first connection.
+            url: 'http://localhost:3000/api/health/ready',
             reuseExistingServer: true,
             cwd: workspaceRoot,
             timeout: 120_000,

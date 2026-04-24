@@ -1,3 +1,23 @@
+# ============================================================================
+# SECURITY INVARIANT — DO NOT ADD STEPS THAT READ PR-CONTROLLED INPUT.
+# ----------------------------------------------------------------------------
+# This workflow runs with `pull_request_target`, which executes in the base
+# repo's context with its secrets (FORCE_DRAFT_PAT, GITHUB_TOKEN write scope).
+# That is ONLY safe because today the workflow:
+#   (a) never checks out PR head code (no `actions/checkout` with `ref:`),
+#   (b) only reads PR metadata that GitHub itself supplies (URL, draft bool,
+#       user type), NOT PR-authored strings (title, body, branch name, commit
+#       messages, file contents), and
+#   (c) only calls `gh pr ready --undo` with a trusted URL.
+# Any step that interpolates a PR-authored string into shell, JS, or an
+# action input turns this file into remote code execution against the base
+# repo, with FORCE_DRAFT_PAT exposed. If you need PR content here, either
+# switch the trigger to `pull_request` (loses write scope on forks, which
+# defeats the purpose of this workflow), or use `actions/github-script` to
+# fetch the data into a typed variable and handle it as untrusted.
+# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+# ============================================================================
+#
 # Convert newly-opened PRs to draft so the CI gates in ci.yml (which skip
 # on draft) don't burn minutes until the author explicitly marks the PR
 # ready for review.

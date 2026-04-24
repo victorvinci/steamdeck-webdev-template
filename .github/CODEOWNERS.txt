@@ -1,2 +1,8 @@
-# Any change to any file requires approval from the Tech Lead
+# Any change to any file requires approval from the Tech Lead.
+#
+# Single catch-all is intentional: this is a solo-maintainer template and
+# the `main` ruleset enforces `require_code_owner_review`. Path-specific
+# ownership (e.g. `apps/backend/ @backend-team`) should be added only when
+# a second reviewer joins — otherwise it's cosmetic splitting that doesn't
+# change the approval requirement.
 *       @victorvinci

@@ -88,11 +88,15 @@ jobs:
 
     # Detects whether code or frontend-relevant paths changed in this push/PR.
     #
-    # `code`     — gates all heavy jobs (check, build, e2e, commitlint,
-    #              attribution-guard). Docs-only PRs skip them and only pay
-    #              for detect + ci-pass (~1 min), keeping branch protection
-    #              happy without burning free-tier minutes.
+    # `code`     — gates all heavy jobs (check, build, e2e, commitlint).
+    #              Docs-only PRs skip them and only pay for detect +
+    #              attribution-guard + ci-pass (~1 min), keeping branch
+    #              protection happy without burning free-tier minutes.
     # `frontend` — additionally gates storybook-build on backend-only changes.
+    #
+    # Note: `attribution-guard` intentionally runs on every non-draft PR
+    # (not gated by `code`) — AI assistants can touch docs, workflows, or
+    # configs and still owe a JSONL entry per CLAUDE.md.
     detect:
         name: detect changed paths
         runs-on: ubuntu-latest
@@ -100,6 +104,7 @@ jobs:
         outputs:
             code: ${{ steps.filter.outputs.code }}
             frontend: ${{ steps.filter.outputs.frontend }}
+            renovate: ${{ steps.filter.outputs.renovate }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - id: filter
@@ -125,6 +130,8 @@ jobs:
                         - 'nx.json'
                         - 'tsconfig*.json'
                         - '.nvmrc'
+                      renovate:
+                        - 'renovate.json'
 
     # ---------- quality ----------
 
@@ -201,32 +208,146 @@ jobs:
 
     attribution-guard:
         name: attribution guard
+        # Runs on every non-draft PR — AI commits can touch any path
+        # (docs, workflows, configs), not just apps/libs, and all of those
+        # require a JSONL entry per CLAUDE.md. The CHANGELOG check inside
+        # the script still only fires on apps/libs changes.
+        if: >-
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            # Shallow fetch keeps this job cheap on forks with long
+            # histories. We only need `$BASE_SHA..HEAD`, so 50 commits
+            # is enough for typical PRs. The deepen loop below handles
+            # larger PRs without reverting to a full clone.
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  fetch-depth: 50
+            - name: Ensure PR base ancestry is reachable
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+              run: |
+                  set -euo pipefail
+                  # Try to fetch the base SHA directly; if the PR is
+                  # larger than 50 commits, deepen in steps until the
+                  # base is an ancestor of HEAD. Cap at 10 deepens to
+                  # avoid a runaway fetch on a pathological case.
+                  git fetch --no-tags --depth=50 origin "$BASE_SHA" || true
+                  tries=0
+                  until git merge-base --is-ancestor "$BASE_SHA" HEAD 2>/dev/null; do
+                      tries=$((tries + 1))
+                      if [ "$tries" -gt 10 ]; then
+                          echo "Could not reach base SHA after 10 deepens; falling back to full history." >&2
+                          git fetch --unshallow origin 2>/dev/null || git fetch --deepen=10000 origin
+                          break
+                      fi
+                      git fetch --deepen=50 origin
+                  done
+            - name: Enforce CHANGELOG + attribution log updates
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  # AI assistant Co-Authored-By patterns. Matches commits
+                  # where an AI pair-programmer contributed code — NOT
+                  # automation bots like dependabot/renovate/github-actions
+                  # (those do dep/ops automation, not code authorship, and
+                  # don't need JSONL entries). Extend this list as new
+                  # assistants are adopted — use a name prefix that appears
+                  # in the trailer's identifier portion.
+                  AI_TRAILER_REGEX: 'Co-Authored-By:[[:space:]]+(claude-|Claude[[:space:]]*<noreply@anthropic|gpt-[0-9]|openai-|gemini-|(github-)?copilot([-[]|[[:space:]])|cursor([-[]|[[:space:]])|devin([-[]|[[:space:]])|codex-)'
+              run: |
+                  set -euo pipefail
+
+                  CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+                  echo "=== Changed files ==="
+                  echo "$CHANGED"
+
+                  # Check 1 — CHANGELOG update when code changes.
+                  if echo "$CHANGED" | grep -qE '^(apps|libs)/'; then
+                    if ! echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
+                      echo "ERROR: apps/ or libs/ changed but CHANGELOG.md was not updated." >&2
+                      exit 1
+                    fi
+                  fi
+
+                  # Check 2 — AI-attribution integrity. For every commit in
+                  # the PR that carries an AI Co-Authored-By trailer, the
+                  # PR must contain a net-new line in .ai-attribution.jsonl.
+                  # One entry can cover multiple work commits, so we don't
+                  # require a 1:1 match — just that *some* entry was added.
+                  AI_COMMITS=$(git log --format='%H %s' "$BASE_SHA"..HEAD --no-merges --extended-regexp --grep="$AI_TRAILER_REGEX" || true)
+                  if [ -n "$AI_COMMITS" ]; then
+                    echo "=== AI-assistant commits in this PR ==="
+                    echo "$AI_COMMITS"
+
+                    # Count added lines in .ai-attribution.jsonl (ignore
+                    # deletions and context; only net appends count).
+                    ADDED=$(git diff --numstat "$BASE_SHA"...HEAD -- .ai-attribution.jsonl | awk '{print $1}')
+                    ADDED=${ADDED:-0}
+                    echo "Net new .ai-attribution.jsonl lines: $ADDED"
+
+                    if [ "$ADDED" -eq 0 ]; then
+                      echo "ERROR: AI-assistant Co-Authored-By trailers detected on commits above, but .ai-attribution.jsonl has no new entries in this PR." >&2
+                      echo "Append one JSONL line per CLAUDE.md and push it as an attribution commit." >&2
+                      exit 1
+                    fi
+
+                    # Count alone is satisfiable by appending `{}` or a
+                    # truncated object — which silently weakens the audit log
+                    # CLAUDE.md promises. Pull the actual added lines and
+                    # require each to parse as JSON.
+                    ADDED_LINES=$(git diff --unified=0 "$BASE_SHA"...HEAD -- .ai-attribution.jsonl | awk '/^\+[^+]/ { sub(/^\+/, ""); print }')
+                    if [ -n "$ADDED_LINES" ] && ! printf '%s\n' "$ADDED_LINES" | jq -c . >/dev/null 2>&1; then
+                      echo "ERROR: one or more lines added to .ai-attribution.jsonl do not parse as JSON." >&2
+                      echo "Each line must be a single compact JSON object — see CLAUDE.md for the schema." >&2
+                      exit 1
+                    fi
+                  fi
+
+    # Blocks PRs that INTRODUCE a dep with a known high/critical advisory.
+    # Dependabot Alerts fire post-merge — this catches it at PR time, before
+    # the vulnerable version lands on develop/main. Summary is posted as a PR
+    # comment only on failure (`on-failure`), so clean PRs stay quiet.
+    # Free on public repos; runs against the PR's head vs base ref.
+    dependency-review:
+        name: dependency review
         needs: detect
         if: >-
             needs.detect.outputs.code == 'true' &&
             github.event_name == 'pull_request' &&
             github.event.pull_request.draft == false
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 3
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
               with:
-                  fetch-depth: 0
-            - name: Enforce CHANGELOG + attribution log updates
-              env:
-                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
-              run: |
-                  CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
-                  echo "$CHANGED"
-                  if echo "$CHANGED" | grep -qE '^(apps|libs)/'; then
-                    if ! echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
-                      echo "ERROR: apps/ or libs/ changed but CHANGELOG.md was not updated." >&2
-                      exit 1
-                    fi
-                    if ! echo "$CHANGED" | grep -q '^\.ai-attribution\.jsonl$'; then
-                      echo "WARNING: apps/ or libs/ changed but .ai-attribution.jsonl was not appended to." >&2
-                    fi
-                  fi
+                  fail-on-severity: high
+                  comment-summary-in-pr: on-failure
+
+    # Validates renovate.json on PRs that change it. A typo in the schema
+    # or a malformed regex-manager silently disables that rule — Renovate
+    # prints a warning in its own dashboard but the PR merges green.
+    # Catching it at PR time means the change gets rejected before it
+    # can mask an upgrade.
+    renovate-config:
+        name: renovate config
+        needs: detect
+        if: >-
+            needs.detect.outputs.renovate == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            # renovate ships `renovate-config-validator` as a bin.
+            # Version is pinned so a compromised upstream release can't
+            # run arbitrary code inside this job on day zero. Bumped by
+            # Renovate itself via the customManager entry in renovate.json.
+            - run: npx --yes --package renovate@43.136.0 -- renovate-config-validator --strict
 
     storybook-build:
         name: storybook build
@@ -245,9 +366,69 @@ jobs:
 
     # ---------- e2e ----------
 
+    # Builds / publishes the Playwright+mysql-client+lsof image to GHCR
+    # before e2e runs, and emits the exact tag e2e should consume. The
+    # GHA layer cache makes this a ~5s no-op when the Dockerfile hasn't
+    # changed; only real Playwright bumps actually rebuild. Pushing to
+    # GHCR on every run is cheap — Docker dedupes by digest, so unchanged
+    # layers don't upload.
+    #
+    # The bootstrap problem (image doesn't exist yet → e2e can't pull)
+    # is avoided by having e2e `needs:` this job, so the image is
+    # guaranteed to exist before e2e starts.
+    playwright-image:
+        name: playwright-e2e image (ghcr)
+        needs: [detect]
+        if: >-
+            needs.detect.outputs.code == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            packages: write
+        outputs:
+            tag: ${{ steps.meta.outputs.tag }}
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - name: Resolve image tag from Dockerfile
+              id: meta
+              run: |
+                  set -euo pipefail
+                  # Pull the Playwright base-image tag out of the FROM
+                  # line; we reuse it as the GHCR tag with a `-mysql`
+                  # suffix. This keeps the tag in lock-step with the
+                  # Dockerfile FROM (which Renovate auto-bumps).
+                  BASE_TAG=$(grep -E '^FROM mcr\.microsoft\.com/playwright:' .github/docker/playwright-e2e.Dockerfile \
+                      | sed -E 's|.*playwright:([^[:space:]]+).*|\1|')
+                  if [ -z "$BASE_TAG" ]; then
+                      echo "Could not parse Playwright FROM tag from Dockerfile." >&2
+                      exit 1
+                  fi
+                  # Lowercase the owner — GHCR rejects mixed-case names.
+                  OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+                  TAG="ghcr.io/${OWNER_LC}/playwright-e2e:${BASE_TAG}-mysql"
+                  echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+                  echo "Image tag: $TAG"
+            - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+            - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+              with:
+                  context: .github/docker
+                  file: .github/docker/playwright-e2e.Dockerfile
+                  tags: ${{ steps.meta.outputs.tag }}
+                  push: true
+                  cache-from: type=gha,scope=playwright-e2e
+                  cache-to: type=gha,mode=max,scope=playwright-e2e
+
     e2e:
         name: e2e
-        needs: [detect, check]
+        needs: [detect, check, playwright-image]
         # PR-only: e2e already ran on the PR before the squash-merge landed,
         # so skipping on push-to-main/develop avoids double-counting ~10 min of
         # Playwright + MySQL runtime against the monthly free-tier budget.
@@ -258,15 +439,24 @@ jobs:
             github.event.pull_request.draft == false
         runs-on: ubuntu-latest
         timeout-minutes: 30
+        permissions:
+            contents: read
+            packages: read
         container:
-            image: mcr.microsoft.com/playwright:v1.59.1-jammy
+            # Pre-baked image from `playwright-image` job above — ships
+            # Playwright + mysql-client + lsof in one layer so we skip
+            # ~30s of `apt-get install` on every run.
+            image: ${{ needs.playwright-image.outputs.tag }}
+            credentials:
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
             # Firefox refuses to launch inside the GHA container without
             # SYS_ADMIN — its sandbox needs user-namespace clone() which
             # the default seccomp profile blocks. This is the workaround
             # documented in Playwright's "Run in CI" guide.
             options: --cap-add=SYS_ADMIN
         services:
-            # Real MySQL for backend-e2e (asserts /api/health → db: connected
+            # Real MySQL for backend-e2e (asserts /api/health/ready → db: connected
             # and reads seeded users from /api/users) and frontend-e2e (which
             # exercises the same users-from-backend flow). Service containers
             # share the job network when the job runs inside a container, so
@@ -321,19 +511,9 @@ jobs:
             - name: Mark workspace as safe (container)
               run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
             - uses: ./.github/actions/setup-node-deps
-            # The Playwright image doesn't ship a mysql client (needed to
-            # load db/schema.sql into the service container before the
-            # backend boots) or lsof (used by backend-e2e's globalTeardown
-            # to free port 3000 — without it the teardown logs a noisy
-            # "lsof: not found" warning, harmless but noisy).
-            #
-            # Low priority: a custom Docker image (extending Playwright +
-            # mysql-client + lsof, hosted on GHCR) would save ~30s per e2e
-            # run. Not worth the maintenance overhead until e2e runs daily.
-            - name: Install mysql client and lsof
-              run: |
-                  apt-get update
-                  apt-get install -y --no-install-recommends default-mysql-client lsof
+            # mysql-client (for loading db/schema.sql) and lsof (used by
+            # backend-e2e's globalTeardown to free port 3000) are baked
+            # into the GHCR image — see .github/docker/playwright-e2e.Dockerfile.
             - name: Load schema and seed data
               env:
                   MYSQL_PWD: app
@@ -379,13 +559,21 @@ jobs:
             - detect
             - check
             - storybook-build
+            - playwright-image
             - e2e
             - commitlint
             - attribution-guard
+            - dependency-review
+            - renovate-config
         runs-on: ubuntu-latest
         timeout-minutes: 2
-        # deployment trigger ONLY for the main branch
-        environment: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
+        # No `environment:` here — a prior version gated ci-pass behind
+        # an `environment: main` approval to act as a pre-merge deploy
+        # gate. That rule was removed (see docs/RELEASE.md → "Things
+        # this flow deliberately avoids") because it created a chicken-
+        # and-egg with the post-merge pages.yml deploy. The deployment
+        # still happens on push-to-main via pages.yml; ci-pass only has
+        # to report green/red for branch protection.
         steps:
             - name: Verify no upstream job failed or was cancelled
               env:

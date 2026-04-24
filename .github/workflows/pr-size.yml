@@ -1,0 +1,150 @@
+# Non-blocking PR size advisory.
+#
+# Labels the PR with `size/xs` … `size/xxl` based on additions + deletions
+# (excluding vendored/generated files listed in `.gitattributes` as
+# `linguist-generated`). Posts a sticky advisory comment on xl+ PRs
+# nudging the author to consider splitting. Intentionally NOT in
+# `ci-pass` needs — large PRs still merge, they just get a heads-up.
+#
+# Runs on its own workflow to keep ci.yml focused on gates. Concurrency
+# cancels older runs on synchronize so the label/comment reflects the
+# latest push.
+#
+# Action pinning policy:
+#   See ci.yml header. Pins are SHA + `# vX` comment for Renovate.
+
+name: PR size advisory
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: write
+
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+    size:
+        name: label + advisory
+        # Skip drafts — the advisory is for PRs under review.
+        if: github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const pr = context.payload.pull_request;
+
+                      // Pull the file list with pagination — PRs can have
+                      // >30 files, which is the default page size.
+                      const files = await github.paginate(
+                          github.rest.pulls.listFiles,
+                          { ...context.repo, pull_number: pr.number, per_page: 100 },
+                      );
+
+                      // Match the `.gitattributes` linguist-generated list plus
+                      // lockfiles and snapshot test output. Keep in sync with
+                      // `.gitattributes` when it grows.
+                      const isGenerated = (path) =>
+                          path === 'package-lock.json' ||
+                          path.endsWith('/routeTree.gen.ts') ||
+                          path.endsWith('.snap') ||
+                          path.includes('/__snapshots__/') ||
+                          path === '.ai-attribution.jsonl';
+
+                      let counted = 0;
+                      let skipped = 0;
+                      for (const f of files) {
+                          const delta = (f.additions ?? 0) + (f.deletions ?? 0);
+                          if (isGenerated(f.filename)) {
+                              skipped += delta;
+                          } else {
+                              counted += delta;
+                          }
+                      }
+
+                      // Industry-standard-ish thresholds. xs/s/m merge quietly;
+                      // l gets a label but no comment; xl+ get the nudge.
+                      const buckets = [
+                          { label: 'size/xs',  max: 9,    nudge: false },
+                          { label: 'size/s',   max: 49,   nudge: false },
+                          { label: 'size/m',   max: 249,  nudge: false },
+                          { label: 'size/l',   max: 799,  nudge: false },
+                          { label: 'size/xl',  max: 1999, nudge: true  },
+                          { label: 'size/xxl', max: Infinity, nudge: true },
+                      ];
+                      const bucket = buckets.find(b => counted <= b.max);
+                      core.notice(`PR size: ${counted} lines changed (${skipped} excluded as generated) → ${bucket.label}`);
+
+                      // Ensure the label exists, then reconcile labels — remove
+                      // any stale size/* label that's not the current bucket.
+                      const sizeLabels = buckets.map(b => b.label);
+                      for (const name of sizeLabels) {
+                          try {
+                              await github.rest.issues.getLabel({ ...context.repo, name });
+                          } catch {
+                              await github.rest.issues.createLabel({
+                                  ...context.repo,
+                                  name,
+                                  color: name === bucket.label ? 'bfdadc' : 'ededed',
+                                  description: `PR size ${name.slice(5)}`,
+                              });
+                          }
+                      }
+                      const currentLabels = (pr.labels ?? []).map(l => l.name);
+                      for (const stale of currentLabels.filter(n => sizeLabels.includes(n) && n !== bucket.label)) {
+                          await github.rest.issues.removeLabel({
+                              ...context.repo, issue_number: pr.number, name: stale,
+                          }).catch(() => {});
+                      }
+                      if (!currentLabels.includes(bucket.label)) {
+                          await github.rest.issues.addLabels({
+                              ...context.repo, issue_number: pr.number, labels: [bucket.label],
+                          });
+                      }
+
+                      // Sticky advisory comment — find by marker, update in place
+                      // or create on first xl+ push. On downsized PRs we don't
+                      // bother deleting the comment: a merge-sized xl PR that
+                      // drops back to m is rare, and leaving the historical
+                      // record is more useful than hiding it.
+                      const marker = '<!-- pr-size-advisory -->';
+                      if (!bucket.nudge) return;
+
+                      const body = [
+                          marker,
+                          `### 📏 PR size: **${bucket.label}** (${counted} lines changed)`,
+                          ``,
+                          `This PR is on the large side. Large PRs are harder to review carefully, which usually means either slower reviews or shallower ones. Consider:`,
+                          ``,
+                          `- Splitting independent concerns into follow-up PRs`,
+                          `- Moving pure refactors out of feature PRs`,
+                          `- Landing scaffolding/config changes first, then the logic that uses them`,
+                          ``,
+                          `_Excluded from the count: \`package-lock.json\`, \`routeTree.gen.ts\`, snapshot files, \`.ai-attribution.jsonl\` (${skipped} lines)._`,
+                          ``,
+                          `_Advisory only — this check doesn't gate the merge._`,
+                      ].join('\n');
+
+                      const existing = await github.paginate(
+                          github.rest.issues.listComments,
+                          { ...context.repo, issue_number: pr.number, per_page: 100 },
+                      );
+                      const prior = existing.find(c => c.body?.startsWith(marker));
+                      if (prior) {
+                          await github.rest.issues.updateComment({
+                              ...context.repo, comment_id: prior.id, body,
+                          });
+                      } else {
+                          await github.rest.issues.createComment({
+                              ...context.repo, issue_number: pr.number, body,
+                          });
+                      }

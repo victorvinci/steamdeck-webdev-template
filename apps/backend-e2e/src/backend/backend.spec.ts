@@ -1,7 +1,23 @@
 import axios from 'axios';
 
-describe('GET /api/health', () => {
+describe('GET /api/health/live', () => {
+    it('returns ok without touching the database', async () => {
+        const res = await axios.get('/api/health/live');
+        expect(res.status).toBe(200);
+        expect(res.data).toEqual({ data: { status: 'ok' } });
+    });
+});
+
+describe('GET /api/health/ready', () => {
     it('returns ok and a connected database', async () => {
+        const res = await axios.get('/api/health/ready');
+        expect(res.status).toBe(200);
+        expect(res.data).toEqual({ data: { status: 'ok', db: 'connected' } });
+    });
+});
+
+describe('GET /api/health (back-compat alias)', () => {
+    it('matches the ready payload', async () => {
         const res = await axios.get('/api/health');
         expect(res.status).toBe(200);
         expect(res.data).toEqual({ data: { status: 'ok', db: 'connected' } });

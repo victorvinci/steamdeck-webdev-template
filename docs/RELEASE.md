@@ -17,11 +17,11 @@ feature/* ──▶ develop ──▶ main ──▶ tag vX.Y.Z
 
 Summary of what's enforced; see the GitHub repo rulesets page for the authoritative source.
 
-| Ruleset        | Target               | Approvals | Merge method | Other                                                    |
-| -------------- | -------------------- | --------- | ------------ | -------------------------------------------------------- |
-| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, `ci pass` required                       |
-| `main`         | `refs/heads/main`    | 1         | rebase       | CODEOWNERS, `require_last_push_approval`, `update` block |
-| `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                   |
+| Ruleset        | Target               | Approvals | Merge method | Other                                                                    |
+| -------------- | -------------------- | --------- | ------------ | ------------------------------------------------------------------------ |
+| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, signed commits, `ci pass` required                       |
+| `main`         | `refs/heads/main`    | 1         | rebase       | signed commits, CODEOWNERS, `require_last_push_approval`, `update` block |
+| `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                                   |
 
 The `Convert PR to Draft` workflow still runs on freshly opened PRs (saving CI minutes until the author marks ready), but is **not** a required status check — it's a one-shot side-effect on `opened`, so making it a gate would leave new commits blocked by an unsatisfiable pending check.
 
@@ -104,12 +104,11 @@ The `Co-Authored-By` trailer is mandatory for AI-authored commits (see `CLAUDE.m
 
 ### 5. Attribution commit
 
-Capture the short SHA from the work commit and append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-vX.Y.Z`.
+Append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-vX.Y.Z`.
 
 ```sh
-SHA=$(git rev-parse --short HEAD)
-cat >> .ai-attribution.jsonl <<JSON
-{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-vX.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"],"commit":"$SHA"}
+cat >> .ai-attribution.jsonl <<'JSON'
+{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-vX.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"]}
 JSON
 git add .ai-attribution.jsonl
 git commit -m "chore(attribution): log release-vX.Y.Z
@@ -117,44 +116,27 @@ git commit -m "chore(attribution): log release-vX.Y.Z
 Co-Authored-By: claude-<model-id>"
 ```
 
-One line per entry — the file is in `.prettierignore` and must stay un-reformatted.
+One line per entry — the file is in `.prettierignore` and must stay un-reformatted. The `Co-Authored-By` trailer on the work commit is the durable audit signal; the JSONL entry carries the structured metadata (`scope`, `description`, `files`). No commit SHA is captured because squash- and rebase-merges rewrite it — see `CLAUDE.md` for the full rationale.
 
 ### 6. PR 1 — `chore/bump-vX.Y.Z` → `develop`
 
 ```sh
 git push -u origin chore/bump-vX.Y.Z
-gh pr create --base develop --title "chore(release): bump version to X.Y.Z" --body "$(cat <<'EOF'
-## Summary
-
-- Bumps version to X.Y.Z
-- Promotes `## [Unreleased]` → `## [X.Y.Z]` in CHANGELOG
-
-## Test plan
-
-- [x] `npm version` diff is limited to version fields
-- [x] CI green
-EOF
-)"
+gh pr create --base develop --title "chore(release): bump version to X.Y.Z" --template bump.md
 ```
 
-Wait for `ci pass` and `Convert PR to Draft` to complete, then squash-merge via the GitHub UI (the only merge method develop allows). The attribution commit's `commit` field will no longer be reachable from `git log develop` after squash — the pre-squash SHA is preserved under the PR's "Commits" tab for auditability. This is an accepted tradeoff of squash-on-develop.
+`--template bump.md` loads `.github/PULL_REQUEST_TEMPLATE/bump.md`, which enumerates the bump-specific checks (no dep drift, CHANGELOG promoted, attribution appended). Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
+
+Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only merge method develop allows). The squash rewrites the work commit's SHA — that's why the schema no longer carries a `commit` field. The `Co-Authored-By` trailer travels into the squashed commit message, and the pre-squash history is preserved under the PR's "Commits" tab for reference.
 
 ### 7. PR 2 — `develop` → `main`
 
 ```sh
 git switch develop && git pull --ff-only origin develop
-gh pr create --base main --head develop --title "release: vX.Y.Z" --body "$(cat <<'EOF'
-## Summary
-
-Release vX.Y.Z — see `CHANGELOG.md` for the full changelist.
-
-## Test plan
-
-- [x] CI green on develop
-- [x] Admin-bypass merge (main ruleset requires 1 approval; solo releases use the admin bypass granted by the ruleset)
-EOF
-)"
+gh pr create --base main --head develop --title "release: vX.Y.Z" --template release.md
 ```
+
+`--template release.md` loads `.github/PULL_REQUEST_TEMPLATE/release.md`, which covers the pre-merge checks, the rebase-merge note, and the post-merge tag/release/sync reminders. Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
 
 Wait for CI on this PR, then **Merge (rebase)** through the GitHub UI. Use the admin bypass prompt if you're the only maintainer. Each commit from develop replays onto main with a new SHA.
 
@@ -169,17 +151,15 @@ git push origin vX.Y.Z
 
 The `release-tags` ruleset activates on push — from now on the tag can't be deleted or moved without admin bypass.
 
-Publish the GitHub Release, auto-sourcing notes from the CHANGELOG section you just promoted:
+The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, and publishes the release with the SBOM attached as an asset. No manual `gh release create` needed.
+
+If the workflow fails (e.g. the CHANGELOG wasn't promoted before tagging and the fallback to auto-generated notes isn't what you want), you can re-run it from the Actions tab or publish manually:
 
 ```sh
-awk -v ver="X.Y.Z" '
-  $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
-  grab && /^## \[/          { exit }
-  grab                      { print }
-' CHANGELOG.md | gh release create vX.Y.Z --title "vX.Y.Z" --notes-file -
+./scripts/extract-changelog-section.sh X.Y.Z | gh release create vX.Y.Z --title "vX.Y.Z" --notes-file -
 ```
 
-The `awk` extracts the content between `## [X.Y.Z]` and the next `## [` header — the section body only, without the header itself, which `gh release create` renders separately via `--title`.
+The script prints the content between `## [X.Y.Z]` and the next `## [` header — the section body only, without the header itself, which `gh release create` renders separately via `--title`.
 
 ### 9. Post-release sync
 
@@ -210,9 +190,25 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 
 1. Branch from `main` as `hotfix/<slug>`.
 2. Fix + CHANGELOG (under `[Unreleased]`) + attribution.
-3. PR `hotfix/<slug>` → `main` (rebase, admin bypass).
+3. PR `hotfix/<slug>` → `main` using the hotfix template (`gh pr create --base main --template hotfix.md`), rebase-merge via admin bypass.
 4. Tag `vX.Y.(Z+1)` and release.
-5. Back-merge `main` → `develop` so the fix isn't lost on the next release.
+5. Sync the fix into `develop` via a **cherry-pick PR** — not a merge. `develop`'s `required_linear_history` rule rejects merge commits, and `develop` will normally have diverged during the hotfix, so the release-PR fast-forward trick (`push origin/main:develop`) would discard develop's un-merged work. Use the cherry-pick flow instead:
+
+    ```sh
+    git switch develop && git pull --ff-only origin develop
+    git switch -c hotfix-sync/<slug>
+    # Identify the hotfix commit(s) landed on main. Usually one rebased commit.
+    git log main --not develop --oneline
+    # Cherry-pick each hotfix commit from main. Resolve CHANGELOG-section
+    # conflicts by keeping develop's existing [Unreleased] section and
+    # appending the hotfix bullet under it (the [X.Y.(Z+1)] header lives
+    # on main only).
+    git cherry-pick <hotfix-sha>
+    git push -u origin hotfix-sync/<slug>
+    gh pr create --base develop --template hotfix-sync.md
+    ```
+
+    The sync PR squash-merges into develop like any other feature PR. Open it immediately after the tag is pushed so the CHANGELOG and code stay aligned across branches. If the cherry-pick conflicts can't be resolved cleanly (large rewrites landed on develop since the hotfix branched), fall back to re-applying the fix by hand on a fresh branch off develop — whichever path is used, the sync PR template applies.
 
 ## Things this flow deliberately avoids
 
