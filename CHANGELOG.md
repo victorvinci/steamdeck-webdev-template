@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Fixed** `apps/frontend-e2e/src/users.failure.spec.ts` — two latent bugs that surfaced the first time the suite ran in CI on PR #43. (1) The empty-state test filtered by `getByRole('status', { name: /No users yet/ })`, but ARIA's `status` role has `Name From: author` only, so `<p role="status">No users yet.</p>` has an empty accessible name and matched nothing across chromium/firefox/webkit; switched to `.filter({ hasText: … })`. (2) The Retry test's counter-based stub returned `calls === 1 ? error : seeded`, which didn't account for React Query's default `retry: 1` auto-retry — the second call silently served the seeded payload, so the error UI never rendered and the manual Retry was never reached. Stub now fails for `calls <= 2` (initial + auto-retry) and the `calls` assertion is tightened to `>= 3`.
 - **Fixed** `renovate.json` `customManagers[0]` — migrated deprecated `fileMatch` to `managerFilePatterns` (with regex delimiters `/.../`). Renovate 43.x treats the old key as "Config migration necessary", which fails the `renovate-config` CI job under `--strict`. No behavioral change — the pattern still matches `.github/workflows/ci.yml` and `ci-scheduled.yml`.
 
 ### Changed

@@ -57,7 +57,11 @@ test('shows the empty-state status when the user list is empty', async ({ page }
     await page.route(USERS_URL, fulfillEmpty);
     await page.goto('/users');
 
-    const status = page.getByRole('status', { name: /No users yet/ });
+    // Filter by text rather than the `name` option: ARIA's `status` role has
+    // Name From: author only, so `<p role="status">No users yet.</p>` has an
+    // empty accessible name and `getByRole('status', { name: … })` matches
+    // nothing across all three browser engines.
+    const status = page.getByRole('status').filter({ hasText: /No users yet/ });
     await expect(status).toBeVisible();
 });
 
@@ -65,7 +69,11 @@ test('Retry refetches after a failed load and renders users on success', async (
     let calls = 0;
     await page.route(USERS_URL, (route) => {
         calls += 1;
-        return calls === 1 ? fulfillError(route) : fulfillSeeded(route);
+        // QueryClient is configured with `retry: 1` in `apps/frontend/src/main.tsx`,
+        // so the initial load silently auto-retries once. Both that initial call and
+        // its auto-retry must fail for the error UI to render; the manual Retry
+        // button click is what eventually succeeds.
+        return calls <= 2 ? fulfillError(route) : fulfillSeeded(route);
     });
 
     await page.goto('/users');
@@ -76,5 +84,5 @@ test('Retry refetches after a failed load and renders users on success', async (
     const region = page.getByRole('region', { name: 'Users' });
     await expect(region).toBeVisible();
     await expect(region).toContainText('Ada Lovelace');
-    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(calls).toBeGreaterThanOrEqual(3);
 });
