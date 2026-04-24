@@ -19,9 +19,16 @@ on:
         - cron: '23 5 * * 1' # weekly Monday 05:23 UTC
     workflow_dispatch:
 
+# Two back-to-back `workflow_dispatch` runs (or a dispatch overlapping the
+# weekly cron) would otherwise race on the same tracking issues — each
+# job ends with an issue `create`/`update`, and two concurrent scripts
+# can clobber each other's bodies. `cancel-in-progress: true` drops the
+# older run the moment a newer one starts. Every job here is idempotent
+# (scanners re-run, issues are upsert-by-label), so cancellation is
+# safe — the next run will re-compute from scratch.
 concurrency:
     group: ${{ github.workflow }}
-    cancel-in-progress: false
+    cancel-in-progress: true
 
 permissions:
     contents: read
@@ -156,7 +163,15 @@ jobs:
             # --- license scan ---
             # Catches accidentally introduced GPL/AGPL/LGPL transitive
             # deps, which are incompatible with most commercial use.
-            # Fails soft to a tracking issue, same pattern as npm-audit.
+            # Two failure modes are handled separately:
+            #   - Scanner exited 0 and found offenders → file/update the
+            #     `license-scan` tracking issue (the normal signal).
+            #   - Scanner exited non-zero (registry flake, npx install
+            #     failure, etc.) → file/update a separate
+            #     `license-scan-error` issue. We do NOT touch the normal
+            #     `license-scan` issue in this case because we can't tell
+            #     whether a real finding was masked — close-stale logic
+            #     only runs when the scanner itself is trustworthy.
             - name: Run license-checker
               id: lc
               run: |
@@ -174,11 +189,73 @@ jobs:
                       --excludePrivatePackages || true
 
             - name: Open or update tracking issue
-              if: steps.lc.outputs.exit_code == '0'
+              if: always()
               uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              env:
+                  LC_EXIT_CODE: ${{ steps.lc.outputs.exit_code }}
               with:
                   script: |
                       const fs = require('fs');
+
+                      // Scanner failed to produce output — file a separate
+                      // `license-scan-error` issue and stop. Leaving the
+                      // normal `license-scan` issue alone is deliberate: a
+                      // broken scanner ≠ "no offenders", so we must not
+                      // close a stale finding just because the run errored.
+                      const lcExit = process.env.LC_EXIT_CODE;
+                      if (lcExit !== '0') {
+                          const errLabel = 'license-scan-error';
+                          const errTitle = `license scan: scanner errored (exit code ${lcExit})`;
+                          const errBody = [
+                              `Weekly license-checker run failed to execute (exit code \`${lcExit}\`). This is usually a transient registry/network issue; re-run the workflow manually once before worrying.`,
+                              ``,
+                              `A failed scan does **not** mean "no offenders" — it means the scanner did not finish, so the normal \`license-scan\` tracking issue has intentionally been left untouched.`,
+                              ``,
+                              `---`,
+                              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                              ``,
+                              `Auto-filed by \`.github/workflows/ci-scheduled.yml\`.`,
+                          ].join('\n');
+
+                          try {
+                              await github.rest.issues.getLabel({ ...context.repo, name: errLabel });
+                          } catch {
+                              await github.rest.issues.createLabel({
+                                  ...context.repo, name: errLabel, color: 'd93f0b',
+                                  description: 'Weekly license scanner failed to execute',
+                              });
+                          }
+
+                          const existingErr = await github.rest.issues.listForRepo({
+                              ...context.repo, state: 'open', labels: errLabel, per_page: 10,
+                          });
+                          if (existingErr.data.length > 0) {
+                              await github.rest.issues.update({
+                                  ...context.repo, issue_number: existingErr.data[0].number, title: errTitle, body: errBody,
+                              });
+                          } else {
+                              await github.rest.issues.create({
+                                  ...context.repo, title: errTitle, body: errBody, labels: [errLabel, 'ci'],
+                              });
+                          }
+                          core.setFailed(`license-checker exited ${lcExit}; see license-scan-error tracking issue`);
+                          return;
+                      }
+
+                      // Scanner succeeded — close any open scanner-error
+                      // issue (it was a prior week's transient failure),
+                      // then run the normal offender-finding flow.
+                      const errLabel = 'license-scan-error';
+                      const staleErr = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: errLabel, per_page: 10,
+                      });
+                      for (const issue of staleErr.data) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: issue.number, state: 'closed',
+                          });
+                          core.notice(`Closed resolved license-scan-error issue #${issue.number}`);
+                      }
+
                       const data = JSON.parse(fs.readFileSync('licenses.json', 'utf8'));
 
                       // Anything matching these is flagged. Keep the list tight
@@ -469,11 +546,109 @@ jobs:
             # Reuses the `dist` from the bundle-size build above. Runs
             # against the already-built frontend so we don't pay for a
             # second `nx run frontend:build`. lhci assertions come from
-            # lighthouserc.json. The job is allowed to fail loudly —
-            # previously this step was `continue-on-error: true`, which
-            # masked real assertion failures behind a green check.
+            # lighthouserc.json. "loud failure on a weekly cron run"
+            # is functionally "no failure" for a solo maintainer, so
+            # we also file a tracking issue on assertion failure (same
+            # pattern as bundle-size / license-scan). The step's exit
+            # status stays red — the issue is the durable signal.
             - name: Run Lighthouse CI
-              run: npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+              id: lh
+              run: |
+                  set +e
+                  npx --yes @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+                  echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+            - name: Open or update tracking issue
+              if: always() && steps.lh.outputs.exit_code != ''
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              env:
+                  LH_EXIT_CODE: ${{ steps.lh.outputs.exit_code }}
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const path = require('path');
+
+                      const label = 'lighthouse';
+                      const lhExit = process.env.LH_EXIT_CODE;
+
+                      // Scanner succeeded — close any stale tracking issue.
+                      if (lhExit === '0') {
+                          core.info('Lighthouse passed all assertions.');
+                          const stale = await github.rest.issues.listForRepo({
+                              ...context.repo, state: 'open', labels: label, per_page: 10,
+                          });
+                          for (const issue of stale.data) {
+                              await github.rest.issues.update({
+                                  ...context.repo, issue_number: issue.number, state: 'closed',
+                              });
+                              core.notice(`Closed resolved lighthouse issue #${issue.number}`);
+                          }
+                          return;
+                      }
+
+                      // Assertion failure — pull the failing categories out of
+                      // the lhci manifest if it exists. lhci writes
+                      // `.lighthouseci/assertion-results.json` on failure with
+                      // { url, auditId, actual, expected, level, ... } entries.
+                      let offenders = '_(see workflow logs — no `assertion-results.json` produced)_';
+                      const resultsFile = path.join('.lighthouseci', 'assertion-results.json');
+                      try {
+                          const results = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
+                          const failed = results.filter(r => r.level === 'error');
+                          if (failed.length > 0) {
+                              offenders = failed
+                                  .map(r => `- **${r.auditId}** (${r.url}) — actual \`${r.actual}\`, expected ${r.operator ?? ''} \`${r.expected}\``)
+                                  .join('\n');
+                          }
+                      } catch (e) {
+                          core.info(`Could not parse ${resultsFile}: ${e.message}`);
+                      }
+
+                      const title = `lighthouse: frontend failed perf assertions`;
+                      const body = [
+                          `Weekly Lighthouse CI run failed one or more assertions defined in \`lighthouserc.json\`.`,
+                          ``,
+                          `## Failing audits`,
+                          offenders,
+                          ``,
+                          `If the regression is intentional (e.g. you relaxed an assertion on purpose), update \`lighthouserc.json\` in a PR. Otherwise investigate the regression — the full Lighthouse report is attached as the \`lighthouseci\` workflow artifact.`,
+                          ``,
+                          `---`,
+                          `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                          ``,
+                          `Auto-filed by \`.github/workflows/ci-scheduled.yml\`.`,
+                      ].join('\n');
+
+                      try {
+                          await github.rest.issues.getLabel({ ...context.repo, name: label });
+                      } catch {
+                          await github.rest.issues.createLabel({
+                              ...context.repo, name: label, color: '5319e7',
+                              description: 'Tracking issue from weekly Lighthouse CI run',
+                          });
+                      }
+
+                      const existing = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: label, per_page: 10,
+                      });
+                      if (existing.data.length > 0) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: existing.data[0].number, title, body,
+                          });
+                          core.notice(`Updated lighthouse issue #${existing.data[0].number}`);
+                      } else {
+                          const created = await github.rest.issues.create({
+                              ...context.repo, title, body, labels: [label, 'performance'],
+                          });
+                          core.notice(`Filed lighthouse issue #${created.data.number}`);
+                      }
+
+            - name: Re-raise Lighthouse failure
+              if: always() && steps.lh.outputs.exit_code != '' && steps.lh.outputs.exit_code != '0'
+              run: |
+                  echo "Lighthouse CI exited ${{ steps.lh.outputs.exit_code }}; see lighthouse tracking issue." >&2
+                  exit 1
+
             - if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:

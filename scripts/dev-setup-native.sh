@@ -39,8 +39,13 @@ if ! (ss -ltn 2>/dev/null | awk '{print $4}' | grep -q ":${DB_PORT}$"); then
     exit 1
 fi
 
-if [[ "$DB_PASSWORD" == *"'"* ]]; then
-    echo "DB_PASSWORD contains a single quote — not supported by this script. Pick a password without quotes." >&2
+# The HEREDOC below embeds ${DB_PASSWORD} into SQL string literals
+# (IDENTIFIED BY '...'). Single-quote breaks the literal, double-quote can
+# confuse callers that re-wrap the statement, and backslash is an escape
+# char inside '...' under MySQL's default sql_mode — all three make the
+# provisioning SQL misparse or silently set a wrong password.
+if [[ "$DB_PASSWORD" == *[\'\"\\]* ]]; then
+    echo "DB_PASSWORD contains a single quote, double quote, or backslash — not supported by this script. Pick a password without them." >&2
     exit 1
 fi
 

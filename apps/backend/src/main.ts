@@ -17,11 +17,21 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', isProd ? 1 : false);
 
+// Client-supplied x-request-id is forwarded into logs and echoed in the
+// response header, so bound its shape: short, ASCII-alnum-plus-dash. Anything
+// else gets a fresh UUID — blocks log-injection (newlines), storage bloat
+// (long strings), and header-smuggling attempts.
+const REQUEST_ID_RE = /^[a-zA-Z0-9-]{1,64}$/;
+
 app.use(
     pinoHttp({
         logger,
         genReqId: (req, res) => {
-            const id = (req.headers['x-request-id'] as string) ?? randomUUID();
+            const incoming = req.headers['x-request-id'];
+            const id =
+                typeof incoming === 'string' && REQUEST_ID_RE.test(incoming)
+                    ? incoming
+                    : randomUUID();
             res.setHeader('x-request-id', id);
             return id;
         },

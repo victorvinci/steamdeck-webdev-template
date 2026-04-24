@@ -6,6 +6,6 @@ coverage
 .nx
 storybook-static
 routeTree.gen.ts
-
+.todo.txt
 # Append-only log — one JSON object per line, must not be reformatted.
 .ai-attribution.jsonl

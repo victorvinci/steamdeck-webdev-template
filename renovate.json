@@ -48,6 +48,7 @@
             "matchManagers": ["github-actions"]
         },
         {
+            "description": "Pin @types/node to match engines.node (>=24). When you bump the Node engine major, raise this cap in the same PR.",
             "matchPackageNames": ["@types/node"],
             "allowedVersions": "<25"
         }
@@ -55,20 +56,11 @@
     "customManagers": [
         {
             "customType": "regex",
-            "description": "Playwright Docker image in CI",
-            "fileMatch": ["^\\.github/workflows/ci\\.yml$"],
+            "description": "npx-pinned packages in CI workflows (scheduled + PR)",
+            "managerFilePatterns": ["/^\\.github/workflows/ci(-scheduled)?\\.yml$/"],
             "matchStrings": [
-                "image:\\s*mcr\\.microsoft\\.com/playwright:v(?<currentValue>[\\d.]+)-jammy"
+                "npx --yes (?:--package )?(?<depName>@?[\\w/-]+)@(?<currentValue>[\\d.x]+)"
             ],
-            "depNameTemplate": "mcr.microsoft.com/playwright",
-            "datasourceTemplate": "docker",
-            "versioningTemplate": "semver"
-        },
-        {
-            "customType": "regex",
-            "description": "npx-pinned packages in scheduled CI",
-            "fileMatch": ["^\\.github/workflows/ci-scheduled\\.yml$"],
-            "matchStrings": ["npx --yes (?<depName>@?[\\w/-]+)@(?<currentValue>[\\d.x]+)"],
             "datasourceTemplate": "npm",
             "versioningTemplate": "semver"
         }

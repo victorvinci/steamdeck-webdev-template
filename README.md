@@ -37,6 +37,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - [Production Deployment](#production-deployment)
 - [Security](#security)
 - [Contributing](./CONTRIBUTING.md)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
 - [Security](./SECURITY.md)
 - [License](#license)
 
@@ -76,7 +77,7 @@ steamdeck-webdev-template/
 │   │       ├── config/         # env.ts (Zod-validated), db.ts (MySQL pool), logger.ts (Pino)
 │   │       ├── errors/         # AppError base class + HTTP subclasses
 │   │       ├── middleware/     # errorHandler, notFound, validate (Zod)
-│   │       ├── routes/         # /api/health, /api/users, …
+│   │       ├── routes/         # /api/health/{live,ready}, /api/users, …
 │   │       ├── services/       # Data access layer (SQL queries)
 │   │       └── main.ts         # Entry (helmet, CORS, rate-limit, graceful shutdown)
 │   └── backend-e2e/            # Backend integration tests (Jest)
@@ -141,7 +142,10 @@ You should now have:
 
 - **Frontend** → http://localhost:4200
 - **Backend** → http://localhost:3000
-- **Health check** → http://localhost:3000/api/health (returns `{ status: "ok", db: "connected" }`)
+- **Health checks:**
+    - http://localhost:3000/api/health/live — liveness, no dependencies touched (`{ data: { status: "ok" } }`)
+    - http://localhost:3000/api/health/ready — readiness, pings MySQL (`{ data: { status: "ok", db: "connected" } }`; `503` if DB is unreachable)
+    - http://localhost:3000/api/health — back-compat alias for `/ready` (same response shape)
 
 > The first run will pull the `mysql:8.4` image — give it a minute.
 
@@ -273,12 +277,12 @@ Three GitHub Actions workflows ship with the repo. Together they form a gating p
 
 Runs on every pull request (and on push to `main` / `develop` as the non-affected full variant). These jobs **gate** merges — a red check blocks the PR.
 
-- `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates all heavy jobs — docs-only PRs pay only ~1 min (detect + ci-pass) while branch protection stays unblocked
+- `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates the heavy jobs (`check`, `storybook-build`, `e2e`, `commitlint`) — docs-only PRs pay only ~1 min (detect + attribution-guard + ci-pass) while branch protection stays unblocked. `attribution-guard` intentionally isn't gated by `code`, since AI commits can touch docs/workflows/configs and still owe a JSONL entry
 - `check` — `format:check` + `nx affected -t lint typecheck test` + `nx affected -t build`, wrapped in an Nx Cloud CI run for distributed cache + self-healing. Uploads `dist/` as an artifact. Quality gates and build are merged into one job to avoid a redundant checkout + `npm ci` on a second runner
 - `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter)
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
-- `attribution-guard` — fails the PR if `apps/` or `libs/` changed without a `CHANGELOG.md` entry. A missing `.ai-attribution.jsonl` append is logged as a warning but does **not** block the PR — human contributors aren't required to append, the log only tracks AI-authored changes
+- `attribution-guard` — runs on every non-draft PR and enforces two rules. (1) If `apps/` or `libs/` changed, a `CHANGELOG.md` entry is required. (2) If any commit in the PR carries an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex, …), the PR must also contain at least one net-new line in `.ai-attribution.jsonl`. Human-only PRs don't need a JSONL append. Automation bots (dependabot, renovate, github-actions) are explicitly excluded from the trailer match
 - `ci-pass` — aggregator status check. Point branch protection at this single job instead of listing every job by name. It passes when every upstream job succeeded or was intentionally skipped (e.g. `storybook-build` on a backend-only PR), and fails if any upstream job failed or was cancelled.
 
 `storybook-build` and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
@@ -309,7 +313,7 @@ Deploys the frontend app and Storybook as a static site on every push to `main`:
 
 **Setup (one-time):** Go to repo `Settings → Pages → Source` and select **GitHub Actions**. The first push to `main` after that provisions the `github-pages` environment automatically.
 
-> **Note:** The frontend is a static export — API calls won't work on GitHub Pages. The `VITE_API_URL` is set to a placeholder at build time to satisfy the Zod env validation.
+> **Note:** The frontend is a static export — API calls won't work on GitHub Pages. The `VITE_API_URL` is set to a placeholder at build time (see the `env:` block on the `build-frontend` step in `.github/workflows/pages.yml`) to satisfy the Zod env validation.
 
 ### Repo-level security features
 
@@ -432,11 +436,20 @@ Generic checklist — adapt to your platform of choice.
 
 5. **Terminate TLS at your reverse proxy / load balancer**, and forward `X-Forwarded-*` headers so Express sees the real client IP.
 
+    The backend calls `app.set('trust proxy', 1)` when `NODE_ENV=production` (see `apps/backend/src/main.ts`). The `1` is correct when there is **exactly one** proxy hop between the client and Node — the most common case (single ALB/ELB, single nginx, Fly/Render/Railway platform proxy). If your topology differs you **must** change the value, because Express uses it to decide which `X-Forwarded-For` entry to trust as the client IP — and `express-rate-limit` buckets requests by that IP, so a wrong value lets any client spoof their IP and bypass the rate limiter.
+    - **No proxy** (Node directly on the public internet — rare): set `trust proxy` to `false`. `req.ip` will then come from the TCP socket, not `X-Forwarded-For`.
+    - **Multiple proxies** (e.g. Cloudflare in front of nginx in front of Node): set to the exact hop count (`2` in that example) or use `'loopback, linklocal, uniquelocal'` plus any trusted upstream CIDRs. Do **not** use `true` — that trusts every hop, which is exactly the spoof path.
+    - See the [Express `trust proxy` docs](https://expressjs.com/en/guide/behind-proxies.html) for the full option list.
+
 6. **Serve the frontend as static files** behind a CDN (Cloudflare, CloudFront, Fastly). The frontend is a pure SPA — no Node runtime needed for the FE.
 
 7. **Run database migrations** as part of your deploy pipeline: `npm run migrate` (see [Database](#database)).
 
-8. **Monitor:** wire `/api/health` to your platform's health check.
+8. **Monitor:** wire the two health endpoints to your platform:
+    - **Liveness probe** → `/api/health/live` (cheap; failure = restart the instance).
+    - **Readiness probe** → `/api/health/ready` (pings the DB; failure = stop routing traffic without restarting).
+    - Avoid pointing liveness at `/ready` — a blipping DB will restart-loop healthy app processes.
+    - `/api/health` is still served as an alias of `/ready` for older probes that haven't been updated.
 
 ---
 
@@ -464,7 +477,7 @@ If you discover a vulnerability in this boilerplate, please **do not** open a pu
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full guide — branches, commits, testing expectations, and the Storybook / CHANGELOG / shared-types rules.
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full guide — branches, commits, testing expectations, and the Storybook / CHANGELOG / shared-types rules. Before proposing a breaking change, consult [`docs/SEMVER.md`](./docs/SEMVER.md) for the public-surface contract and major-version triggers.
 
 Security issues should be reported privately per [`SECURITY.md`](./SECURITY.md), **not** as public issues.
 
