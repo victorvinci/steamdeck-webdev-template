@@ -21,6 +21,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 > **Heads-up:** this boilerplate intentionally **ships without authentication**. Add your own auth layer (JWT, sessions, OAuth, Auth.js, etc.) before exposing protected data. See [Security](#security).
 
+> **New fork?** Read [`docs/FORK.md`](./docs/FORK.md) first. It walks through the mechanical rename (`scripts/rename-template.sh`), the GitHub-side setup (Pages, rulesets, Nx Cloud, Renovate), and what to strip out once the template has served its purpose. Skipping it and running the Quick Start below will work, but you'll inherit the template's name, CODEOWNERS, and live-demo URLs — not what you want for a new project.
+
 ---
 
 ## Table of Contents
@@ -28,6 +30,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
+- [Forking this template](./docs/FORK.md)
 - [Quick Start](#quick-start)
 - [Manual Setup](#manual-setup)
 - [Daily Development](#daily-development)
