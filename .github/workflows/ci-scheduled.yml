@@ -742,3 +742,147 @@ jobs:
                               ...context.repo, title, body, labels: [label],
                           });
                       }
+
+    # ---------- template rename self-test ----------
+    #
+    # Exercises `scripts/rename-template.sh` end-to-end on a fresh checkout
+    # so we catch drift between the rename allowlist and the actual repo.
+    # Failure modes this guards against:
+    #
+    #   1. Someone adds a new file containing the project name / GitHub
+    #      owner / npm scope / maintainer email but forgets to add it to
+    #      the script's allowlist. Result on a real fork: residual template
+    #      strings ship with the renamed tree.
+    #
+    #   2. The script itself develops a regression (broken sed expression,
+    #      dropped argument handling, etc.) that breaks `npm run check`
+    #      after the rename.
+    #
+    # Runs on the weekly cron + workflow_dispatch only — not per PR — so
+    # we don't pay ~5–10 min per change for a class of bug that surfaces
+    # rarely. Tracking issue makes the cron failure visible without
+    # relying on someone watching workflow runs.
+    template-rename:
+        name: template rename self-test
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+
+            # The script bails on a dirty worktree. Fresh `actions/checkout`
+            # produces a clean tree, so the guard is satisfied without
+            # --force-dirty. We still configure git identity in case any
+            # downstream step (npm install hooks, etc.) tries to commit.
+            - name: Configure git identity
+              run: |
+                  git config user.email "ci@example.com"
+                  git config user.name "CI"
+
+            - name: Run rename script with test arguments
+              id: rename
+              run: |
+                  set +e
+                  ./scripts/rename-template.sh \
+                      --project-name     foo-fork \
+                      --github-owner     alice \
+                      --npm-scope        acme \
+                      --maintainer-email alice@example.com
+                  echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+            # The script's own `npm run format` + `npm run check` already
+            # gate on a renamed tree being a valid build. This step adds
+            # belt-and-suspenders: scan for residual template strings in
+            # files the script's allowlist might be missing entirely.
+            #
+            # Excluded from the scan:
+            #   - CHANGELOG.md, .ai-attribution.jsonl, docs/SECURITY-AUDIT-*
+            #     are point-in-time historical records — the script
+            #     intentionally leaves them alone.
+            #   - scripts/rename-template.sh, docs/FORK.md document the
+            #     rename and reference the strings as literal examples.
+            - name: Scan for residual template strings
+              if: steps.rename.outputs.exit_code == '0'
+              id: leftovers
+              run: |
+                  EXCLUDE='^(CHANGELOG\.md|\.ai-attribution\.jsonl|docs/SECURITY-AUDIT-v1\.0\.0|scripts/rename-template\.sh|docs/FORK\.md)'
+                  REMAINING=$(git ls-files | grep -vE "$EXCLUDE" | xargs grep -l 'steamdeck-webdev-template\|@mcb/\|victorvinci' 2>/dev/null || true)
+                  if [ -n "$REMAINING" ]; then
+                      echo "::error::Residual template strings after rename in:"
+                      echo "$REMAINING"
+                      echo ""
+                      echo "These files contain 'steamdeck-webdev-template', '@mcb/', or 'victorvinci'"
+                      echo "but are NOT in scripts/rename-template.sh's allowlist for any sed pass."
+                      echo "Either add them to the appropriate sed pass, or — if they're"
+                      echo "intentionally untouched (point-in-time records) — add them to the"
+                      echo "EXCLUDE regex in this workflow step."
+                      exit 1
+                  fi
+                  echo "OK — no residual template strings in checked-in files."
+
+            - name: Open or update tracking issue on failure
+              if: failure()
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const label = 'template-rename-drift';
+                      const title = `template rename self-test: scripts/rename-template.sh out of sync with repo`;
+                      const body = [
+                          `Weekly template rename self-test failed. The script at \`scripts/rename-template.sh\` no longer produces a clean fork tree on the current \`develop\`.`,
+                          ``,
+                          `**Likely causes (in order of frequency):**`,
+                          ``,
+                          `1. A new file landed that contains \`steamdeck-webdev-template\`, \`@mcb/\`, \`victorvinci\`, or \`victorvinci@protonmail.com\` but isn't in the script's allowlist. The job logs name the file(s); add to the appropriate sed pass.`,
+                          `2. The script itself has a regression (broken sed expression, missing argument). Run locally with \`./scripts/rename-template.sh ...\` to reproduce.`,
+                          `3. \`npm run check\` no longer passes on a renamed tree because of an unrelated change. Reproduce with \`./scripts/rename-template.sh\` then look at the failing gate.`,
+                          ``,
+                          `Fix the script, push to a branch, re-run this workflow via **Actions → CI (scheduled) → Run workflow** to confirm green before closing this issue.`,
+                          ``,
+                          `---`,
+                          `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                          ``,
+                          `Auto-filed by \`.github/workflows/ci-scheduled.yml\`. Updated in place each week.`,
+                      ].join('\n');
+
+                      try {
+                          await github.rest.issues.getLabel({ ...context.repo, name: label });
+                      } catch {
+                          await github.rest.issues.createLabel({
+                              ...context.repo, name: label, color: 'b60205',
+                              description: 'Template rename self-test detected drift between script and repo',
+                          });
+                      }
+
+                      const existing = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: label, per_page: 10,
+                      });
+                      if (existing.data.length > 0) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: existing.data[0].number, title, body,
+                          });
+                          core.notice(`Updated template-rename-drift issue #${existing.data[0].number}`);
+                      } else {
+                          const created = await github.rest.issues.create({
+                              ...context.repo, title, body, labels: [label, 'ci'],
+                          });
+                          core.notice(`Filed template-rename-drift issue #${created.data.number}`);
+                      }
+
+            - name: Close tracking issue on success
+              if: success()
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const label = 'template-rename-drift';
+                      const stale = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: label, per_page: 10,
+                      });
+                      for (const issue of stale.data) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: issue.number, state: 'closed',
+                          });
+                          core.notice(`Closed resolved template-rename-drift issue #${issue.number}`);
+                      }

@@ -219,6 +219,8 @@ Once CI is green on the rename:
 
 You're off the template and onto your project.
 
+> **Pulling template improvements later?** See [`docs/UPGRADE.md`](./UPGRADE.md). It covers cherry-picking upstream commits, replaying from CHANGELOG entries, and the three files (`.ai-attribution.jsonl`, `CHANGELOG.md`, rename-touched files) that always conflict on cross-fork merges.
+
 ---
 
 ## Troubleshooting
