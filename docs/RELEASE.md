@@ -219,4 +219,4 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 
 ## Operational levers
 
-- **`NX_CLOUD_ENABLED` (repo variable).** Acts as a kill switch for Nx Cloud across every workflow. Set to `'true'` to enable distributed cache + self-healing CI; unset (or any other value) disables it and CI falls back to local execution. Wired into `ci.yml`, `ci-scheduled.yml`, and `pages.yml` — flip it once and every workflow honours the change. Use this when Nx Cloud is having an outage or when forking the template into a repo that doesn't have a Cloud token configured yet.
+- **`NX_CLOUD_ENABLED` (repo variable).** Kill switch for Nx Cloud, wired into `ci.yml`, `ci-scheduled.yml`, and `pages.yml`. Flip to `false` if Nx Cloud is having an outage (e.g. free-plan quota exhaustion) and CI is stuck — the pipeline falls back to the local filesystem cache and keeps gating PRs without needing a code change. Full setup, semantics, and the quota-failure-mode explanation live in [README → Nx Cloud configuration](../README.md#nx-cloud-configuration); don't duplicate the details here.

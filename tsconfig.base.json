@@ -19,6 +19,7 @@
         "noFallthroughCasesInSwitch": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
+        "noUncheckedIndexedAccess": true,
         "paths": {
             "@mcb/types": ["./libs/types/src/index.ts"],
             "@mcb/utils": ["./libs/utils/src/index.ts"]

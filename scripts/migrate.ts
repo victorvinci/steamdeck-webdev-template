@@ -90,12 +90,26 @@ async function migrate() {
             const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
             console.log(`Applying: ${file}`);
 
+            // Wrap each migration + its schema_migrations bookkeeping in a single
+            // transaction so a failure mid-run can't leave the version row recorded
+            // against a half-applied schema. MySQL caveat: DDL statements (CREATE,
+            // ALTER, DROP, TRUNCATE) implicitly commit and cannot be rolled back —
+            // so for pure-DDL migrations the wrap protects only the bookkeeping
+            // INSERT, not the schema change itself. For data migrations (INSERT /
+            // UPDATE / DELETE only) the transaction protects the full body.
             const conn = await pool.getConnection();
             try {
+                await conn.beginTransaction();
                 await conn.query(sql);
                 await conn.execute('INSERT INTO schema_migrations (version) VALUES (?)', [file]);
+                await conn.commit();
                 console.log(`  Done: ${file}`);
             } catch (err) {
+                try {
+                    await conn.rollback();
+                } catch (rollbackErr) {
+                    console.error(`  Rollback failed for ${file}:`, rollbackErr);
+                }
                 console.error(`  FAILED: ${file}`);
                 throw err;
             } finally {
