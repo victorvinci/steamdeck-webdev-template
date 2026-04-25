@@ -3,6 +3,9 @@ import { env } from './env';
 
 export const api = axios.create({
     baseURL: env.VITE_API_URL,
+    // 30s ceiling so a hung backend can't hang the UI forever. Per-call
+    // overrides via `api.get(url, { timeout: ... })` still work.
+    timeout: 30_000,
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',

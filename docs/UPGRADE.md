@@ -141,6 +141,17 @@ The upstream `[Unreleased]` section is the upstream's notes; your fork's `[Unrel
 
 ---
 
+## TypeScript strictness changes
+
+Upstream's `tsconfig.base.json` is stricter than the TypeScript defaults — `strict: true` plus `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, and `noUncheckedIndexedAccess`. When upstream enables a new strictness flag, your fork inherits it on the next pickup. Most of these are inert on existing code, but two patterns trip up forks regularly:
+
+- **`noUncheckedIndexedAccess`.** `arr[0]` and `record["key"]` resolve to `T | undefined`. The most common point of friction is that `if (arr.length > 0) { arr[0] }` does **not** narrow — TypeScript doesn't track length-based narrowing. Fix with `arr[0] ?? fallback`, optional chaining, or destructuring (`const [head] = arr; if (head !== undefined) ...`). Tuples, dot-access, and `.find()` / `.at()` / `Map.get()` (already `T | undefined`) are unaffected.
+- **`exactOptionalPropertyTypes`** (not currently enabled, but a likely future flip). Distinguishes `{ x?: T }` from `{ x: T | undefined }` — assigning `undefined` to an optional becomes an error. Watch for this in a future pickup.
+
+If a strictness flip lands a wave of new TypeScript errors in your fork, that's the flag working as intended on code the upstream template never had to typecheck. Fix the call sites rather than reverting the flag — reverting drifts your fork further from the template and forfeits the bug-prevention the flag exists for.
+
+---
+
 ## What this doc is not
 
 - **Not a guide to contributing back to upstream.** That's `CONTRIBUTING.md` in the upstream repo. Forks are independent projects under the MIT license; you're not obligated to upstream anything.

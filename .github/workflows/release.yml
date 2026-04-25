@@ -51,6 +51,27 @@ jobs:
                   # ls-files` on some modes. Matches ci.yml's policy.
                   fetch-depth: 1
 
+            - name: Verify tag commit is on main
+              # Defence-in-depth against a typo'd or mis-targeted tag.
+              # docs/RELEASE.md only sanctions tags cut from main, but
+              # `on.push.tags` fires on any `v*` tag pushed to any ref.
+              # This step asks GitHub whether the tagged commit is
+              # reachable from `main`; if not, the release is aborted
+              # before SBOM/notes work runs.
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG: ${{ github.ref_name }}
+                  SHA: ${{ github.sha }}
+              run: |
+                  set -euo pipefail
+                  echo "Tag $TAG points at $SHA — checking it is on main."
+                  if ! gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" \
+                      --jq '.status' | grep -qE '^(identical|behind)$'; then
+                      echo "::error::Tag $TAG ($SHA) is not on main. Refusing to publish." >&2
+                      exit 1
+                  fi
+                  echo "Tag is on main. Proceeding."
+
             - name: Extract CHANGELOG section
               id: notes
               env:
