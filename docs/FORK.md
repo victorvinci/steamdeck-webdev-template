@@ -26,6 +26,8 @@ The `npm install` step is needed so `npm run check` (called at the end of the re
 
 ## Step 2 — Run the rename script
 
+The script requires **bash 3.2+** (it uses `set -euo pipefail` and array-less control flow). It will not run under `/bin/sh` on systems where that's a leaner shell like dash or ash — invoke it via the shebang on a system with bash on PATH (macOS, mainstream Linux distros, and `ubuntu-latest` CI images all qualify).
+
 ```bash
 ./scripts/rename-template.sh \
     --project-name     <your-repo-name> \
@@ -33,6 +35,8 @@ The `npm install` step is needed so `npm run check` (called at the end of the re
     --npm-scope        <your-npm-scope> \
     --maintainer-email <your-email>
 ```
+
+Pass `--skip-check` to skip the trailing `npm run format` + `npm run check` step (~couple of minutes) when you're iterating on arguments and plan to run those gates yourself. Pass `--force-dirty` to bypass the clean-worktree guard (only useful if you're hacking on the script itself).
 
 The script rewrites four categories across an explicit allowlist of files:
 
@@ -115,6 +119,15 @@ Full table with the ruleset names and their required bypass lists is in [`docs/R
 | `release-tags` | Tag names `v*`   | Tag creation restricted to maintainers (so random contributors can't cut releases)                 |
 
 Set these up via `Settings → Rules → Rulesets → New ruleset` for each. If you delete `CODEOWNERS.txt` (Step 3), drop the code-owner-review rule from the `main` ruleset.
+
+### Solo-maintainer trap on the `main` ruleset
+
+The `main` ruleset enforces `require_code_owner_review`, and the shipped `.github/CODEOWNERS.txt` is a single catch-all (`* @<owner>`). **You can't approve your own PR**, so on a solo fork the ruleset will block every merge into `main` until you either:
+
+- Add yourself to the ruleset's **bypass list** (`Settings → Rules → Rulesets → main → Bypass list → Add → Repository admin` or your handle directly), which is what `docs/RELEASE.md` assumes; or
+- Add a second reviewer to `CODEOWNERS.txt` and route every release through them.
+
+The bypass-list approach is the pragmatic default for solo maintainers — the ruleset still gates contributors, but you can land the rebase merge from `develop` yourself. Don't skip this; otherwise the first attempt to follow `docs/RELEASE.md` will hit a wall.
 
 ---
 

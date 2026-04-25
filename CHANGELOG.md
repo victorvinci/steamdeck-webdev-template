@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Added** `scripts/rename-template.sh` + `docs/FORK.md` — fork-onboarding pair for the v1.0.0 template-usability pass. The script mechanizes the four-category rename (project name, GitHub owner, npm scope, maintainer email) across an explicit allowlist of files; historical records (`CHANGELOG.md`, `.ai-attribution.jsonl`, `docs/SECURITY-AUDIT-v1.0.0*.md`) are left alone. Validates input shapes, requires a clean worktree unless `--force-dirty`, runs `npm run format` + `npm run check` before handing back. `docs/FORK.md` documents the full 10-step onboarding: rename, manual file cleanups the script can't automate, GitHub Settings (Pages, package write, private vulnerability reporting), branch rulesets, external services (Nx Cloud, Renovate), signed commits, first CI run, and a pruning checklist for boilerplate that new forks won't need. `README.md` Table of Contents and a top-of-README callout point at the doc so fresh forks land on it before running Quick Start.
 
+### Changed
+
+- **Changed** `scripts/rename-template.sh` gains a `--skip-check` flag that skips the trailing `npm run format` + `npm run check` step (~couple of minutes). Useful when iterating on the rename arguments and planning to run gates by hand. The default behaviour (run check, fail on red) is unchanged.
+- **Changed** `scripts/rename-template.sh` header comment now states the bash 3.2+ requirement explicitly so users on Alpine/dash-based images know to invoke it via `bash` rather than `sh`. `docs/FORK.md` Step 2 mirrors the requirement.
+- **Changed** `docs/FORK.md` Step 5 now flags the solo-maintainer CODEOWNERS trap on the `main` ruleset — `require_code_owner_review` plus a single-handle catch-all blocks self-approval, so a solo maintainer must either add themselves to the ruleset bypass list or onboard a second reviewer. Previously this was only implicit in `docs/RELEASE.md`.
+
 ### Fixed
 
 - **Fixed** `scripts/rename-template.sh` now also rewrites `package-lock.json` in its project-name sweep. The lockfile carries the project name at two positions (root `name` and the empty-key workspace entry) and was previously skipped, so `git add -A && git commit` immediately after the rename (as `docs/FORK.md` Step 2 instructs) would land a `package.json`/lockfile mismatch on the fork's `develop`.

@@ -2,6 +2,12 @@
 #
 # Mechanical rename of template identifiers on a fresh fork.
 #
+# Requires bash 3.2+ (uses `set -euo pipefail` and array-less syntax). Will
+# NOT run under /bin/sh (e.g. dash on Debian, ash on Alpine) — invoke as
+# `bash scripts/rename-template.sh` or via the shebang on a system with
+# bash on PATH. macOS, Linux desktop distros, and standard CI images
+# (ubuntu-latest, etc.) all ship bash by default.
+#
 # Replaces four categories of hard-coded values with fork-specific ones:
 #   1. project name:   steamdeck-webdev-template   -> --project-name
 #   2. GitHub owner:   victorvinci                 -> --github-owner
@@ -22,11 +28,13 @@
 #       --github-owner     alice \
 #       --npm-scope        acme \
 #       --maintainer-email alice@example.com \
-#       [--force-dirty]
+#       [--force-dirty] \
+#       [--skip-check]
 #
 # Afterwards, review the diff and commit the rename as a single commit.
 # The script runs `npm run format` and `npm run check` at the end; both
-# must pass before you commit.
+# must pass before you commit. Pass `--skip-check` to skip them when you
+# plan to verify by hand (e.g. iterating on the rename arguments).
 
 set -euo pipefail
 
@@ -35,6 +43,7 @@ GITHUB_OWNER=""
 NPM_SCOPE=""
 MAINTAINER_EMAIL=""
 FORCE_DIRTY="no"
+SKIP_CHECK="no"
 
 usage() {
     cat <<'EOF' >&2
@@ -45,6 +54,7 @@ Usage:
         --npm-scope        <npm-scope>           e.g. acme   (no leading @)
         --maintainer-email <email>               e.g. alice@example.com
         [--force-dirty]                          allow running on a dirty worktree
+        [--skip-check]                           skip the trailing format + check step
 
 Run from the repository root.
 EOF
@@ -58,6 +68,7 @@ while [ $# -gt 0 ]; do
         --npm-scope)        NPM_SCOPE="${2:-}";        shift 2 ;;
         --maintainer-email) MAINTAINER_EMAIL="${2:-}"; shift 2 ;;
         --force-dirty)      FORCE_DIRTY="yes";         shift   ;;
+        --skip-check)       SKIP_CHECK="yes";          shift   ;;
         -h|--help)          usage ;;
         *) echo "Unknown argument: $1" >&2; usage ;;
     esac
@@ -162,16 +173,21 @@ inplace_sed "s|victorvinci|${GITHUB_OWNER}|g" \
     README.md \
     CONTRIBUTING.md
 
-echo
-echo "==> Running: npm run format  (prettier re-normalises anything sed mangled)"
-npm run format --silent
-
-echo "==> Running: npm run check   (format:check + lint + typecheck + test)"
-if ! npm run check; then
+if [ "$SKIP_CHECK" = "yes" ]; then
     echo
-    echo "npm run check failed. The rename left the repo in a bad state." >&2
-    echo "Review the diff, fix by hand or re-run with corrected args, and commit only when check is green." >&2
-    exit 1
+    echo "==> Skipping format + check (--skip-check). Run \`npm run format && npm run check\` yourself before committing."
+else
+    echo
+    echo "==> Running: npm run format  (prettier re-normalises anything sed mangled)"
+    npm run format --silent
+
+    echo "==> Running: npm run check   (format:check + lint + typecheck + test)"
+    if ! npm run check; then
+        echo
+        echo "npm run check failed. The rename left the repo in a bad state." >&2
+        echo "Review the diff, fix by hand or re-run with corrected args, and commit only when check is green." >&2
+        exit 1
+    fi
 fi
 
 echo
