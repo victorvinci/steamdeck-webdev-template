@@ -399,21 +399,25 @@ sudo mysql -e "DROP DATABASE steamdeck_dev;" && npm run setup
 
 Backend env is **validated at startup** by `apps/backend/src/config/env.ts` (Zod). The app refuses to start if any required variable is missing or malformed.
 
-| Variable              | Required | Default       | Notes                                   |
-| --------------------- | -------- | ------------- | --------------------------------------- |
-| `NODE_ENV`            | no       | `development` | `development` \| `test` \| `production` |
-| `HOST`                | no       | `localhost`   | Backend bind host                       |
-| `PORT`                | no       | `3000`        | Backend bind port                       |
-| `DB_HOST`             | **yes**  | —             |                                         |
-| `DB_PORT`             | no       | `3306`        |                                         |
-| `DB_NAME`             | **yes**  | —             |                                         |
-| `DB_USER`             | **yes**  | —             |                                         |
-| `DB_PASSWORD`         | **yes**  | —             | Use a strong value in any non-local env |
-| `DB_CONNECTION_LIMIT` | no       | `10`          |                                         |
-| `FRONTEND_URL`        | **yes**  | —             | Exact CORS origin — no wildcards        |
-| `VITE_API_URL`        | **yes**  | —             | Read by the frontend at build time      |
+| Variable              | Required       | Default                 | Consumer         | Notes                                                                                                                                                                  |
+| --------------------- | -------------- | ----------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`            | no             | `development`           | backend          | `development` \| `test` \| `production`                                                                                                                                |
+| `HOST`                | no             | `localhost`             | backend, e2e     | Backend bind host                                                                                                                                                      |
+| `PORT`                | no             | `3000`                  | backend, e2e     | Backend bind port                                                                                                                                                      |
+| `DB_HOST`             | **yes**        | —                       | backend, scripts |                                                                                                                                                                        |
+| `DB_PORT`             | no             | `3306`                  | backend, scripts |                                                                                                                                                                        |
+| `DB_NAME`             | **yes**        | —                       | backend, scripts |                                                                                                                                                                        |
+| `DB_USER`             | **yes**        | —                       | backend, scripts |                                                                                                                                                                        |
+| `DB_PASSWORD`         | **yes**        | —                       | backend, scripts | Use a strong value in any non-local env                                                                                                                                |
+| `DB_ROOT_PASSWORD`    | docker-compose | —                       | docker-compose   | MySQL root password — only read by the dev `docker-compose.yml`. Must differ from `DB_PASSWORD` so leaking the app credential doesn't grant root on the dev container. |
+| `DB_CONNECTION_LIMIT` | no             | `10`                    | backend          |                                                                                                                                                                        |
+| `FRONTEND_URL`        | **yes**        | —                       | backend          | Exact CORS origin — no wildcards                                                                                                                                       |
+| `VITE_API_URL`        | **yes**        | —                       | frontend         | Read by the frontend at build time                                                                                                                                     |
+| `BASE_URL`            | no             | `http://localhost:4200` | frontend-e2e     | Where Playwright points the browser. Only override when running e2e against a non-default URL (staging, custom dev port).                                              |
 
 > **`VITE_*` vars are public.** Anything in a `VITE_` variable is bundled into the frontend and visible to every user. Never put secrets there.
+
+> **`DB_ROOT_PASSWORD` is dev-only.** It's referenced by `docker-compose.yml` to provision the local MySQL container's root account. The Zod schema in `apps/backend/src/config/env.ts` deliberately doesn't read it — production deployments should not provide it to the backend.
 
 ---
 
