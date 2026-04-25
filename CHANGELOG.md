@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Changed** `apps/frontend/src/lib/api.ts` axios instance now ships with `timeout: 30_000` so a hung backend can't hang the UI forever. Per-call overrides via `api.get(url, { timeout: ... })` still work; this is just a sane default the previous client lacked.
+- **Changed** `apps/backend/src/main.ts` rate limiter now skips `/api/health/*` paths via `skip: (req) => req.path.startsWith('/api/health')`. Orchestrator probes (Kubernetes liveness/readiness, load-balancer health checks) hit these endpoints on every interval and would otherwise burn the per-IP budget during rolling deploys, causing legitimate traffic from the same IP to be throttled.
+
+### CI
+
+- **Added** "Verify tag commit is on main" guard step to `.github/workflows/release.yml`. The workflow fires on any `v*` tag push (`on.push.tags`), but `docs/RELEASE.md` only sanctions tags cut from `main`. The new step asks GitHub's compare API whether the tagged commit is reachable from `main` (`identical` or `behind`) and aborts before SBOM/notes work runs if it isn't — defence-in-depth against a typo'd tag name or a tag accidentally pushed against `develop` or a feature branch.
+
 ### Documentation
 
+- **Added** "Operational levers" section to `docs/RELEASE.md` documenting the `NX_CLOUD_ENABLED` repo variable (kill switch wired into `ci.yml`, `ci-scheduled.yml`, and `pages.yml`). Existed in the workflows since the pre-v0.2.0 hardening pass but was never surfaced in the release docs, so a maintainer hitting an Nx Cloud outage during a release would have had to grep the workflows to find the lever.
 - **Added** `docs/UPGRADE.md` — how a fork pulls template improvements after diverging. Three documented patterns (cherry-pick by SHA, replay from CHANGELOG, upstream remote + merge) with guidance on when each applies, plus the always-conflicts trio (`.ai-attribution.jsonl`, `CHANGELOG.md`, rename-touched files) and how to resolve each. Linked from `README.md` Table of Contents and `docs/FORK.md` Step 10 so readers find it both at onboarding time and later.
 - **Documented** `DB_ROOT_PASSWORD` and `BASE_URL` in `README.md`'s Environment Variables table — both were used by the repo (the former by `docker-compose.yml`, the latter by `apps/frontend-e2e/playwright.config.ts`) but undocumented. Table also gains a `Consumer` column so it's clear which surface reads each variable. Two new callouts: `VITE_*` are public-by-design, `DB_ROOT_PASSWORD` is dev-only and never read by the backend Zod schema.
 - **Added** `BASE_URL` to `.env.example` (commented, with the default `http://localhost:4200`) so first-time fork developers running e2e against a non-default URL don't have to grep `playwright.config.ts` to discover the knob.

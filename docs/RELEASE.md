@@ -216,3 +216,7 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 - **Pre-merge deployment gates on `main`.** The old `required_deployments: ["main"]` rule created a chicken-and-egg with the post-merge `pages.yml` deploy. Removed so merging into main works cleanly; the deployment still runs post-merge, just no longer as a pre-merge gate.
 - **Squash or rebase on release tags.** Tags are immutable by policy — the `release-tags` ruleset blocks delete and update so a pushed `vX.Y.Z` always points at exactly one commit.
 - **`npm version X.Y.Z` without `--no-git-tag-version`.** The default creates a commit and tag you don't want yet; you want the tag on `main` post-merge, not on the feature branch.
+
+## Operational levers
+
+- **`NX_CLOUD_ENABLED` (repo variable).** Acts as a kill switch for Nx Cloud across every workflow. Set to `'true'` to enable distributed cache + self-healing CI; unset (or any other value) disables it and CI falls back to local execution. Wired into `ci.yml`, `ci-scheduled.yml`, and `pages.yml` — flip it once and every workflow honours the change. Use this when Nx Cloud is having an outage or when forking the template into a repo that doesn't have a Cloud token configured yet.
