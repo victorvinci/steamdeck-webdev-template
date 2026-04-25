@@ -21,9 +21,10 @@
 
 - [ ] `npm run check` passes (format, lint, typecheck, tests)
 - [ ] Tested locally in the browser (if UI change)
-- [ ] New/updated Storybook stories (if new component)
+- [ ] Storybook stories added or updated to cover the change (mandatory for any new or changed frontend component — see `CLAUDE.md`)
 - [ ] e2e tests pass (`npm run e2e`)
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]`
+- [ ] Docs touched if user-facing behaviour changed (`README.md`, `docs/`, or `docs/TROUBLESHOOTING.md` for fork-onboarding gotchas)
 - [ ] `.ai-attribution.jsonl` appended if AI-assisted (see `CLAUDE.md` schema)
 
 ## Notes

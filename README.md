@@ -28,16 +28,19 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 ## Table of Contents
 
 - [Tech Stack](#tech-stack)
+- [Scope](#scope)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Manual Setup](#manual-setup)
 - [Daily Development](#daily-development)
 - [Testing](#testing)
+- [API Surface](#api-surface)
 - [Database](#database)
 - [Environment Variables](#environment-variables)
 - [Production Deployment](#production-deployment)
 - [Security](#security)
+- [Troubleshooting](./docs/TROUBLESHOOTING.md)
 - [Forking this template](./docs/FORK.md)
 - [Pulling template updates into your fork](./docs/UPGRADE.md)
 - [Contributing](./CONTRIBUTING.md)
@@ -60,6 +63,36 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 | Testing       | Vitest / Jest (unit), Playwright (e2e)                      |
 | Component dev | Storybook (addon-a11y for accessibility audits)             |
 | Linting       | ESLint + Prettier                                           |
+
+---
+
+## Scope
+
+What ships with this template — and, equally important, what doesn't. The point is to give a fork a working monorepo skeleton with safe defaults, **not** a half-complete product. Things in the "doesn't ship" column are deliberate omissions, not bugs.
+
+**Ships with:**
+
+- Full Nx workspace wired for `nx affected` (per-PR CI, scheduled CI, distributed cache via Nx Cloud, filesystem cache fallback).
+- React + Vite frontend with TanStack Router (file-based) + TanStack Query (server state) + Storybook (component dev with `addon-a11y`).
+- Express 5 backend with helmet, CORS, rate limiting (skips `/api/health/*`), pino structured logging with `x-request-id` propagation, graceful SIGTERM/SIGINT shutdown.
+- Shared `libs/types` (Zod schemas + inferred TS types — single source of truth across both apps) and `libs/utils` (dependency-free helpers).
+- MySQL 8 dev DB via Docker Compose (with a `dev-setup-native.sh` fallback for hosts without Docker), numbered SQL migrations under `db/migrations/`, transaction-wrapped migration runner.
+- Demo `/api/users` route end-to-end: Zod schema → service layer → MySQL pool → React Query hook → component → Storybook + Playwright + Jest + Vitest coverage.
+- Release flow: `develop → main → tag` with bump / release / hotfix / hotfix-sync PR templates, signed-commit branch rulesets, `release.yml` SBOM + GitHub Release publication, fork-rename script (`scripts/rename-template.sh`) + onboarding doc (`docs/FORK.md`).
+- AI-assisted development scaffolding: `CLAUDE.md` agent contract, `.ai-attribution.jsonl` audit log, two-commit attribution flow, CI guard validating each new line is parseable JSON.
+
+**Does not ship with — fork concerns:**
+
+- **Authentication / authorisation.** No login, sessions, JWTs, OAuth, RBAC, or password handling. The `/api/users` demo is unauthenticated by design.
+- **Real domain schema.** `db/migrations/001_initial.sql` provisions a single `users` table for the demo. Replace it with your own schema; the migration runner doesn't care what's in there.
+- **ORM or query builder.** Direct `mysql2` with named placeholders — no Prisma / Drizzle / Knex. Add one if you want; nothing in the template assumes its absence.
+- **Production deployment IaC.** GitHub Pages publishes the frontend (see `pages.yml`) but there's no Terraform / Pulumi / Helm / Docker production image for the backend. The `Production Deployment` section below covers the runtime expectations; the substrate is your call.
+- **Payments, email, queue, cache.** No Stripe, no SES, no Redis, no BullMQ. Each fork pulls in what it needs.
+- **Feature flags / experiment framework.** No GrowthBook / LaunchDarkly / Unleash wiring.
+- **Observability beyond logs.** Pino prints structured logs with `x-request-id` for stitching, but no APM / tracing / metrics exporter is shipped.
+- **i18n.** English-only strings; no `react-intl` / `i18next` setup.
+
+The boundary is: **patterns and infrastructure that every web app needs** (typed API contracts, signed releases, working CI, env validation, graceful shutdown) ship; **product-specific subsystems** (auth, payments, observability vendor) don't. If a feature would force a decision a fork should make for itself, it stays out.
 
 ---
 
@@ -270,6 +303,83 @@ npm run e2e:be       # backend e2e only (Jest)
 ```
 
 > First local e2e run: `npx playwright install` to fetch browser binaries. The e2e targets depend on `backend:serve` via Nx, so you don't need to start the backend yourself — but make sure your `.env` / MySQL are provisioned first (`npm run setup`).
+
+---
+
+## API Surface
+
+The demo backend exposes three routes. Schemas live in `libs/types/src/lib/api.ts` and are the single source of truth — both apps import from `@mcb/types`, so the contract can never drift between server and client.
+
+### Response envelope
+
+Every successful response is wrapped in:
+
+```ts
+type ApiSuccess<T> = { data: T };
+```
+
+Every error response is:
+
+```ts
+type ApiError = {
+    error: string; // human-readable summary
+    issues?: Array<{ path: string; message: string }>; // present for Zod validation failures
+};
+```
+
+`ApiResponse<T> = ApiSuccess<T> | ApiError`. Use the `isApiError` type guard from `@mcb/types` to branch.
+
+### Routes
+
+#### `GET /api/health/live`
+
+Liveness probe. Doesn't touch the DB. A failure means the process is wedged — orchestrator should restart.
+
+- **Response (200):** `{ "data": { "status": "ok" } }`
+
+#### `GET /api/health/ready`
+
+Readiness probe. Pings the MySQL pool with `SELECT 1`. A failure means the instance is alive but can't serve requests — orchestrator should stop routing traffic without restarting.
+
+- **Response (200):** `{ "data": { "status": "ok", "db": "connected" } }`
+- **Response (503):** `{ "error": "Database unavailable" }`
+
+`GET /api/health` is retained as an alias of `/ready` for back-compat with probes that haven't been updated to the split.
+
+#### `GET /api/users?limit=20&offset=0`
+
+Lists users with pagination.
+
+- **Query params (Zod-validated, coerced from strings):**
+    - `limit` — integer 1–100, default `20`
+    - `offset` — integer ≥ 0, default `0`
+- **Response (200):**
+    ```json
+    {
+        "data": {
+            "users": [
+                {
+                    "id": 1,
+                    "name": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "createdAt": "2026-04-12T00:00:00.000Z"
+                }
+            ],
+            "total": 1
+        }
+    }
+    ```
+- **Response (400):** `{ "error": "...", "issues": [{ "path": "limit", "message": "Number must be less than or equal to 100" }] }`
+
+### Cross-cutting behaviour
+
+Every route shares the middleware stack from `apps/backend/src/main.ts`:
+
+- `helmet` security headers (CSP, referrer policy, frame-ancestors).
+- `cors` with `origin: env.FRONTEND_URL` and `credentials: true`.
+- `express-rate-limit` at 100 req/min per IP, **skipping `/api/health/*`** so orchestrator probes don't burn the budget.
+- `pino-http` request logging with `x-request-id` propagation (client-supplied IDs are validated against `/^[a-zA-Z0-9-]{1,64}$/`; otherwise a fresh UUID is assigned).
+- 100 KB body / form payload cap.
 
 ---
 

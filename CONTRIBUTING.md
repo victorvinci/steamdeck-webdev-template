@@ -55,6 +55,8 @@ AI-authored commits created by Claude Code (and similar assistants) sign with th
 
 This repo tracks AI-written code in [`CLAUDE.md`](./CLAUDE.md) and [`.ai-attribution.jsonl`](./.ai-attribution.jsonl). If you use an AI assistant to write or edit code in this repo, append one JSON line to the attribution log per the schema in `CLAUDE.md`, and make sure the `CHANGELOG.md` rule above is followed — the agent instructions under `.claude/agents/` already enforce this, but the rule applies to human contributors too.
 
+When committing AI-assisted work, follow the **two-commit flow** documented in [`CLAUDE.md` → "Two-commit flow (MANDATORY when committing)"](./CLAUDE.md#ai-attribution-rule-important): one work commit (code + `CHANGELOG.md`, no JSONL touch) followed by a separate attribution commit (only `.ai-attribution.jsonl`). Push both together so CI runs once on the bundle. The split keeps the work commit's diff readable for reviewers without losing the audit-log entry, and the doc explains why `git commit --amend` is the wrong tool here.
+
 ## Pull requests
 
 - Open the PR against `develop` (the integration branch). `main` is the release branch — PRs land there only via `develop → main` merges.

@@ -76,6 +76,10 @@ app.use(
         limit: 100,
         standardHeaders: 'draft-7',
         legacyHeaders: false,
+        // Orchestrator probes (Kubernetes liveness/readiness, load
+        // balancers) hit /api/health/* on every interval and would
+        // otherwise burn the per-IP budget during rolling deploys.
+        skip: (req) => req.path.startsWith('/api/health'),
     })
 );
 
