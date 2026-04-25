@@ -149,7 +149,9 @@ inplace_sed "s|@mcb/|@${NPM_SCOPE}/|g" \
     apps/frontend/src/components/UsersList.spec.tsx \
     apps/frontend/src/components/UsersList.tsx \
     apps/frontend/src/routes/users.tsx \
-    apps/frontend/src/lib/api/users.ts
+    apps/frontend/src/lib/api/users.ts \
+    libs/types/README.md \
+    libs/utils/README.md
 
 echo "==> 3/4  project name (steamdeck-webdev-template -> ${PROJECT_NAME})"
 # package-lock.json holds the project name at the root and at the empty-key
