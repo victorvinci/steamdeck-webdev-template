@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documented** `DB_ROOT_PASSWORD` and `BASE_URL` in `README.md`'s Environment Variables table — both were used by the repo (the former by `docker-compose.yml`, the latter by `apps/frontend-e2e/playwright.config.ts`) but undocumented. Table also gains a `Consumer` column so it's clear which surface reads each variable. Two new callouts: `VITE_*` are public-by-design, `DB_ROOT_PASSWORD` is dev-only and never read by the backend Zod schema.
 - **Added** `BASE_URL` to `.env.example` (commented, with the default `http://localhost:4200`) so first-time fork developers running e2e against a non-default URL don't have to grep `playwright.config.ts` to discover the knob.
 
+### CI
+
+- **Added** `template-rename` job to `.github/workflows/ci-scheduled.yml` — a self-test that runs `scripts/rename-template.sh` end-to-end with throwaway args (`foo-fork` / `alice` / `acme` / `alice@example.com`) on a fresh checkout, then scans for residual `steamdeck-webdev-template` / `@mcb/` / `victorvinci` strings in checked-in files outside the historical-records exclude list. Catches the failure mode where someone adds a new file containing template strings but forgets to add it to the script's allowlist. Runs on the weekly cron + `workflow_dispatch`; failure files a `template-rename-drift` tracking issue.
+
+### Fixed
+
+- **Fixed** `scripts/rename-template.sh` npm-scope sweep now also rewrites `libs/types/README.md` and `libs/utils/README.md` — both shipped with `@mcb/types` / `@mcb/utils` references in their docs but were missing from the allowlist. The new template-rename CI self-test surfaced this on first run.
+
 ### Added
 
 - **Added** `scripts/rename-template.sh` + `docs/FORK.md` — fork-onboarding pair for the v1.0.0 template-usability pass. The script mechanizes the four-category rename (project name, GitHub owner, npm scope, maintainer email) across an explicit allowlist of files; historical records (`CHANGELOG.md`, `.ai-attribution.jsonl`, `docs/SECURITY-AUDIT-v1.0.0*.md`) are left alone. Validates input shapes, requires a clean worktree unless `--force-dirty`, runs `npm run format` + `npm run check` before handing back. `docs/FORK.md` documents the full 10-step onboarding: rename, manual file cleanups the script can't automate, GitHub Settings (Pages, package write, private vulnerability reporting), branch rulesets, external services (Nx Cloud, Renovate), signed commits, first CI run, and a pruning checklist for boilerplate that new forks won't need. `README.md` Table of Contents and a top-of-README callout point at the doc so fresh forks land on it before running Quick Start.
