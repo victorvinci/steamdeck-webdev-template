@@ -129,7 +129,7 @@ Already documented in [`README.md` → "Nx Cloud configuration"](../README.md#nx
 3. Add `NX_CLOUD_ACCESS_TOKEN` as an Actions **secret** (`Settings → Secrets and variables → Actions → New repository secret`).
 4. Add `NX_CLOUD_ENABLED` as an Actions **variable** (same screen, "Variables" tab) with value `true`.
 
-Until you do this, CI falls back to the filesystem `.nx/cache`, which is correct but loses cross-PR cache hits and the self-healing step.
+Until you do step 2, CI will 401 against the template's Nx Cloud workspace — not degrade gracefully. The fastest unblock if you don't want Nx Cloud yet is to blank `nxCloudId` in `nx.json` (Troubleshooting below); that falls back to the filesystem `.nx/cache`, which is correct but loses cross-PR cache hits and the self-healing step. Steps 3 and 4 only matter once you've done step 1 or 2.
 
 ### Renovate (dependency PRs)
 

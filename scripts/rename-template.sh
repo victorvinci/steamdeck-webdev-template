@@ -141,8 +141,13 @@ inplace_sed "s|@mcb/|@${NPM_SCOPE}/|g" \
     apps/frontend/src/lib/api/users.ts
 
 echo "==> 3/4  project name (steamdeck-webdev-template -> ${PROJECT_NAME})"
+# package-lock.json holds the project name at the root and at the empty-key
+# workspace entry under `packages`. Rewriting it here keeps package.json and
+# the lockfile in sync, so `git add -A && git commit` immediately after the
+# rename doesn't land a mismatched pair on develop.
 inplace_sed "s|steamdeck-webdev-template|${PROJECT_NAME}|g" \
     package.json \
+    package-lock.json \
     .github/workflows/ci.yml \
     .github/workflows/ci-scheduled.yml \
     docs/RELEASE.md \
