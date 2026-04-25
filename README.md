@@ -39,6 +39,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - [Production Deployment](#production-deployment)
 - [Security](#security)
 - [Forking this template](./docs/FORK.md)
+- [Pulling template updates into your fork](./docs/UPGRADE.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Code of Conduct](./CODE_OF_CONDUCT.md)
 - [Security](./SECURITY.md)

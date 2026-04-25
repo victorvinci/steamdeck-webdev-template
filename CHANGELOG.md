@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Added** `docs/UPGRADE.md` — how a fork pulls template improvements after diverging. Three documented patterns (cherry-pick by SHA, replay from CHANGELOG, upstream remote + merge) with guidance on when each applies, plus the always-conflicts trio (`.ai-attribution.jsonl`, `CHANGELOG.md`, rename-touched files) and how to resolve each. Linked from `README.md` Table of Contents and `docs/FORK.md` Step 10 so readers find it both at onboarding time and later.
 - **Documented** `DB_ROOT_PASSWORD` and `BASE_URL` in `README.md`'s Environment Variables table — both were used by the repo (the former by `docker-compose.yml`, the latter by `apps/frontend-e2e/playwright.config.ts`) but undocumented. Table also gains a `Consumer` column so it's clear which surface reads each variable. Two new callouts: `VITE_*` are public-by-design, `DB_ROOT_PASSWORD` is dev-only and never read by the backend Zod schema.
 - **Added** `BASE_URL` to `.env.example` (commented, with the default `http://localhost:4200`) so first-time fork developers running e2e against a non-default URL don't have to grep `playwright.config.ts` to discover the knob.
 
