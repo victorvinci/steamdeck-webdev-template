@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-rc.2] - 2026-04-26
+
 ### Fixed
 
 - **Fixed** `.github/actions/resolve-nx-base/action.yml` — composite action now validates that the resolved base SHA is reachable in the runner's clone, falling back to `HEAD~1` with a `::warning::` if not. On a force-push, `github.event.before` points at the discarded commit and `nx affected`'s `git diff <missing> HEAD` was failing with `fatal: bad object`, blocking CI on develop until the next non-force push. `ci.yml`'s `fetch-depth: 0` makes the `HEAD~1` fallback safe.
