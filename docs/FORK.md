@@ -108,15 +108,15 @@ First successful push makes the package visible under `<owner>/packages`; mark i
 
 ## Step 5 — Branch rulesets
 
-The release workflow (`docs/RELEASE.md`) depends on specific rulesets on `develop`, `main`, and the `v*` tag namespace. Rulesets are stored server-side at the GitHub org/repo level — they're **not** in any file in this repo, so a fresh fork has zero rulesets until you recreate them.
+The release workflow (`docs/RELEASE.md`) depends on specific rulesets on `develop`, `main`, and the `[0-9]*` tag namespace (numeric SemVer tags, no leading `v`). Rulesets are stored server-side at the GitHub org/repo level — they're **not** in any file in this repo, so a fresh fork has zero rulesets until you recreate them.
 
 Full table with the ruleset names and their required bypass lists is in [`docs/RELEASE.md`](./RELEASE.md#branch-rulesets). The short version:
 
-| Ruleset        | Protects         | Key rules                                                                                          |
-| -------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `develop`      | `develop` branch | Require PR, required linear history, required status checks (`ci-pass`), require signed commits    |
-| `main`         | `main` branch    | Require PR, required linear history, required status checks (`ci-pass`), require code-owner review |
-| `release-tags` | Tag names `v*`   | Tag creation restricted to maintainers (so random contributors can't cut releases)                 |
+| Ruleset        | Protects           | Key rules                                                                                          |
+| -------------- | ------------------ | -------------------------------------------------------------------------------------------------- |
+| `develop`      | `develop` branch   | Require PR, required linear history, required status checks (`ci-pass`), require signed commits    |
+| `main`         | `main` branch      | Require PR, required linear history, required status checks (`ci-pass`), require code-owner review |
+| `release-tags` | Tag names `[0-9]*` | Tag creation restricted to maintainers (so random contributors can't cut releases)                 |
 
 Set these up via `Settings → Rules → Rulesets → New ruleset` for each. If you delete `CODEOWNERS.txt` (Step 3), drop the code-owner-review rule from the `main` ruleset.
 

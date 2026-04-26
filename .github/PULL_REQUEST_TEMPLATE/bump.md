@@ -17,7 +17,7 @@
 - [ ] `npm version X.Y.Z --no-git-tag-version` used (no dependency re-resolution)
 - [ ] Diff limited to `package.json`, both `package-lock.json` version fields, and `CHANGELOG.md`
 - [ ] Empty `## [Unreleased]` left above `## [X.Y.Z] - YYYY-MM-DD`
-- [ ] `.ai-attribution.jsonl` appended with `scope: release-vX.Y.Z` (if AI-assisted)
+- [ ] `.ai-attribution.jsonl` appended with `scope: release-X.Y.Z` (if AI-assisted)
 - [ ] `ci pass` green on this PR
 
 ## Notes
