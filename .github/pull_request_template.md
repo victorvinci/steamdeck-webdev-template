@@ -1,6 +1,6 @@
 <!--
   This is the default PR template. For release-flow PRs, use a selectable one:
-    - bump.md        — chore/bump-vX.Y.Z  → develop
+    - bump.md        — chore/bump-X.Y.Z   → develop
     - release.md     — develop            → main
     - hotfix.md      — hotfix/<slug>      → main
     - hotfix-sync.md — hotfix-sync/<slug> → develop (cherry-pick post-tag)
