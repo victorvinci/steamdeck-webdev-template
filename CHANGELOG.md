@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-rc.3] - 2026-04-26
+
 ### Fixed
 
 - **Fixed** `.github/workflows/release.yml` now passes `prerelease: ${{ contains(github.ref_name, '-') }}` to `softprops/action-gh-release`, so SemVer pre-release tags (`0.3.0-rc.2`, `1.0.0-beta.1`) are correctly badged "Pre-release" on GitHub. The action does **not** infer pre-release status from the tag name on its own; previously the `0.3.0-rc.2` release was published as a regular release. Clean tags (`0.3.0`, `1.0.0`) get `prerelease: false` and the standard release badge.
