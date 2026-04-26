@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Changed** release/hotfix PR title formats to satisfy commitlint. `docs/RELEASE.md` step 7 now opens the develop→main PR with `--title "chore(release): X.Y.Z"` (was `release: X.Y.Z`, which fails `@commitlint/config-conventional`'s `type-enum` because `release` isn't a standard conventional-commits type). `.github/PULL_REQUEST_TEMPLATE/release.md` updated to match (title-format header + body prose drop the stray `v` prefix). `.github/PULL_REQUEST_TEMPLATE/hotfix.md` likewise — guidance now points at `fix: <description>` (or whatever standard type matches the change), since the "hotfix" intent is already carried by the `hotfix/<slug>` branch name and the template itself. Caught when PR #52 (`release: 0.3.0-rc.2`) hit a `type must be one of [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]` failure on the commitlint job.
-
 ## [0.3.0-rc.2] - 2026-04-26
 
 ### Fixed
@@ -20,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Changed** release tag scheme to numeric SemVer (no leading `v`). `.github/workflows/release.yml` now triggers on `[0-9]*` tag pushes instead of `v*`, so tags are pushed as `0.3.0` / `1.0.0` / `1.2.3-rc.1` rather than `v0.3.0` etc. Documentation updated in `docs/RELEASE.md` (branch model, ruleset table, all step examples), `docs/FORK.md` (ruleset setup table), `.github/PULL_REQUEST_TEMPLATE/release.md` (title format, post-merge tag command), `.github/PULL_REQUEST_TEMPLATE/bump.md` (attribution scope), `.github/PULL_REQUEST_TEMPLATE/hotfix.md` (post-merge tag command), and `.github/pull_request_template.md` (branch-name hint). The `release-tags` GitHub ruleset must be updated server-side too (Settings → Rules → Rulesets → `release-tags` → Target: `refs/tags/[0-9]*`) — that lives outside this repo and won't be carried by this PR. Action SHA pin comments (e.g. `# v4`) in `.github/workflows/ci.yml` are unchanged because those reference upstream GitHub Actions releases, not this repo's tags.
+- **Changed** release/hotfix PR title formats to satisfy commitlint. `docs/RELEASE.md` step 7 now opens the develop→main PR with `--title "chore(release): X.Y.Z"` (was `release: X.Y.Z`, which fails `@commitlint/config-conventional`'s `type-enum` because `release` isn't a standard conventional-commits type). `.github/PULL_REQUEST_TEMPLATE/release.md` updated to match (title-format header + body prose drop the stray `v` prefix). `.github/PULL_REQUEST_TEMPLATE/hotfix.md` likewise — guidance now points at `fix: <description>` (or whatever standard type matches the change), since the "hotfix" intent is already carried by the `hotfix/<slug>` branch name and the template itself. Caught when PR #52 (`release: 0.3.0-rc.2`) hit a `type must be one of [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]` failure on the commitlint job.
 
 ## [0.3.0-rc.1] - 2026-04-26
 
