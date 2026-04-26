@@ -40,6 +40,6 @@
 
 <!-- Complete these immediately after the rebase-merge lands. -->
 
-- [ ] Patch version bumped on `main` and tag pushed: `git tag -a vX.Y.(Z+1) -m "vX.Y.(Z+1)" && git push origin vX.Y.(Z+1)`
+- [ ] Patch version bumped on `main` and tag pushed: `git tag -a X.Y.(Z+1) -m "X.Y.(Z+1)" && git push origin X.Y.(Z+1)`
 - [ ] GitHub Release published (notes sourced from the `[Unreleased]` hotfix entry, which should then be promoted)
 - [ ] Hotfix synced into `develop` via a cherry-pick PR using `hotfix-sync.md` — open it immediately after the tag is pushed. See `docs/RELEASE.md` → "Hotfix flow" step 5 for the full recipe.

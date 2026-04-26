@@ -1,6 +1,6 @@
 # Post-tag release automation.
 #
-# Fires when an annotated `vX.Y.Z` tag lands on `main` (see
+# Fires when an annotated `X.Y.Z` tag lands on `main` (see
 # `docs/RELEASE.md` step 8). Does three things, in order:
 #
 #   1. Extracts the matching `## [X.Y.Z]` section from CHANGELOG.md
@@ -25,7 +25,12 @@ name: Release
 on:
     push:
         tags:
-            - 'v*'
+            # Numeric SemVer tags only (no leading `v`). Brackets are
+            # supported in `on.push.tags` filter patterns; `[0-9]*` matches
+            # anything starting with a digit, e.g. `1.0.0`, `0.3.0-rc.1`.
+            # The "Verify tag commit is on main" guard below catches any
+            # accidental triggers from non-release tags pushed elsewhere.
+            - '[0-9]*'
 
 permissions:
     contents: read
@@ -54,7 +59,7 @@ jobs:
             - name: Verify tag commit is on main
               # Defence-in-depth against a typo'd or mis-targeted tag.
               # docs/RELEASE.md only sanctions tags cut from main, but
-              # `on.push.tags` fires on any `v*` tag pushed to any ref.
+              # `on.push.tags` fires on any `[0-9]*` tag pushed to any ref.
               # This step asks GitHub whether the tagged commit is
               # reachable from `main`; if not, the release is aborted
               # before SBOM/notes work runs.

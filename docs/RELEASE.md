@@ -5,13 +5,13 @@ How we cut a version of `steamdeck-webdev-template`. The workflow encodes the br
 ## Branch model
 
 ```
-feature/* ──▶ develop ──▶ main ──▶ tag vX.Y.Z
+feature/* ──▶ develop ──▶ main ──▶ tag X.Y.Z
   (squash)     (rebase)      (annotated tag)
 ```
 
 - **`develop`** — integration branch. Feature and chore PRs squash-merge here. One squashed commit per PR keeps `git log develop` readable as a list of features.
 - **`main`** — release branch. Only `develop → main` PRs land here, via rebase-merge, so each develop commit replays onto main with linear history.
-- **`refs/tags/v*`** — annotated release tags cut on `main`. Protected by the `release-tags` ruleset (no delete, no move, no force-push) once pushed.
+- **`refs/tags/[0-9]*`** — annotated release tags cut on `main` (numeric SemVer, no leading `v`). Protected by the `release-tags` ruleset (no delete, no move, no force-push) once pushed.
 
 ## Rulesets relevant to releases
 
@@ -21,7 +21,7 @@ Summary of what's enforced; see the GitHub repo rulesets page for the authoritat
 | -------------- | -------------------- | --------- | ------------ | ------------------------------------------------------------------------ |
 | `develop`      | `refs/heads/develop` | 0         | squash       | linear history, signed commits, `ci pass` required                       |
 | `main`         | `refs/heads/main`    | 1         | rebase       | signed commits, CODEOWNERS, `require_last_push_approval`, `update` block |
-| `release-tags` | `refs/tags/v*`       | —         | —            | block delete, update, non-fast-forward                                   |
+| `release-tags` | `refs/tags/[0-9]*`   | —         | —            | block delete, update, non-fast-forward                                   |
 
 The `Convert PR to Draft` workflow still runs on freshly opened PRs (saving CI minutes until the author marks ready), but is **not** a required status check — it's a one-shot side-effect on `opened`, so making it a gate would leave new commits blocked by an unsatisfiable pending check.
 
@@ -48,7 +48,7 @@ git pull --ff-only origin develop
 ### 1. Branch
 
 ```sh
-git switch -c chore/bump-vX.Y.Z
+git switch -c chore/bump-X.Y.Z
 ```
 
 Use `chore/bump-<version>` consistently so the purpose is obvious in the PR list.
@@ -104,24 +104,24 @@ The `Co-Authored-By` trailer is mandatory for AI-authored commits (see `CLAUDE.m
 
 ### 5. Attribution commit
 
-Append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-vX.Y.Z`.
+Append one JSONL line to `.ai-attribution.jsonl`. The schema lives in `CLAUDE.md`; use scope `release-X.Y.Z`.
 
 ```sh
 cat >> .ai-attribution.jsonl <<'JSON'
-{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-vX.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"]}
+{"date":"YYYY-MM-DD","model":"claude-<model-id>","scope":"release-X.Y.Z","description":"Bumped version to X.Y.Z and promoted CHANGELOG.","files":["package.json","package-lock.json","CHANGELOG.md"]}
 JSON
 git add .ai-attribution.jsonl
-git commit -m "chore(attribution): log release-vX.Y.Z
+git commit -m "chore(attribution): log release-X.Y.Z
 
 Co-Authored-By: claude-<model-id>"
 ```
 
 One line per entry — the file is in `.prettierignore` and must stay un-reformatted. The `Co-Authored-By` trailer on the work commit is the durable audit signal; the JSONL entry carries the structured metadata (`scope`, `description`, `files`). No commit SHA is captured because squash- and rebase-merges rewrite it — see `CLAUDE.md` for the full rationale.
 
-### 6. PR 1 — `chore/bump-vX.Y.Z` → `develop`
+### 6. PR 1 — `chore/bump-X.Y.Z` → `develop`
 
 ```sh
-git push -u origin chore/bump-vX.Y.Z
+git push -u origin chore/bump-X.Y.Z
 gh pr create --base develop --title "chore(release): bump version to X.Y.Z" --template bump.md
 ```
 
@@ -133,7 +133,7 @@ Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only me
 
 ```sh
 git switch develop && git pull --ff-only origin develop
-gh pr create --base main --head develop --title "release: vX.Y.Z" --template release.md
+gh pr create --base main --head develop --title "release: X.Y.Z" --template release.md
 ```
 
 `--template release.md` loads `.github/PULL_REQUEST_TEMPLATE/release.md`, which covers the pre-merge checks, the rebase-merge note, and the post-merge tag/release/sync reminders. Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
@@ -145,8 +145,8 @@ Wait for CI on this PR, then **Merge (rebase)** through the GitHub UI. Use the a
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push origin vX.Y.Z
+git tag -a X.Y.Z -m "X.Y.Z"
+git push origin X.Y.Z
 ```
 
 The `release-tags` ruleset activates on push — from now on the tag can't be deleted or moved without admin bypass.
@@ -156,7 +156,7 @@ The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/rel
 If the workflow fails (e.g. the CHANGELOG wasn't promoted before tagging and the fallback to auto-generated notes isn't what you want), you can re-run it from the Actions tab or publish manually:
 
 ```sh
-./scripts/extract-changelog-section.sh X.Y.Z | gh release create vX.Y.Z --title "vX.Y.Z" --notes-file -
+./scripts/extract-changelog-section.sh X.Y.Z | gh release create X.Y.Z --title "X.Y.Z" --notes-file -
 ```
 
 The script prints the content between `## [X.Y.Z]` and the next `## [` header — the section body only, without the header itself, which `gh release create` renders separately via `--title`.
@@ -191,7 +191,7 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 1. Branch from `main` as `hotfix/<slug>`.
 2. Fix + CHANGELOG (under `[Unreleased]`) + attribution.
 3. PR `hotfix/<slug>` → `main` using the hotfix template (`gh pr create --base main --template hotfix.md`), rebase-merge via admin bypass.
-4. Tag `vX.Y.(Z+1)` and release.
+4. Tag `X.Y.(Z+1)` and release.
 5. Sync the fix into `develop` via a **cherry-pick PR** — not a merge. `develop`'s `required_linear_history` rule rejects merge commits, and `develop` will normally have diverged during the hotfix, so the release-PR fast-forward trick (`push origin/main:develop`) would discard develop's un-merged work. Use the cherry-pick flow instead:
 
     ```sh
@@ -214,7 +214,7 @@ Not part of the normal release cadence, but when a critical fix must skip develo
 
 - **`npm install` during bump.** Drags in incidental dep updates and muddies the release diff. Use `npm version`.
 - **Pre-merge deployment gates on `main`.** The old `required_deployments: ["main"]` rule created a chicken-and-egg with the post-merge `pages.yml` deploy. Removed so merging into main works cleanly; the deployment still runs post-merge, just no longer as a pre-merge gate.
-- **Squash or rebase on release tags.** Tags are immutable by policy — the `release-tags` ruleset blocks delete and update so a pushed `vX.Y.Z` always points at exactly one commit.
+- **Squash or rebase on release tags.** Tags are immutable by policy — the `release-tags` ruleset blocks delete and update so a pushed `X.Y.Z` always points at exactly one commit.
 - **`npm version X.Y.Z` without `--no-git-tag-version`.** The default creates a commit and tag you don't want yet; you want the tag on `main` post-merge, not on the feature branch.
 
 ## Operational levers
