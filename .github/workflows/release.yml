@@ -114,7 +114,16 @@ jobs:
                   upload-artifact: false
                   upload-release-assets: false
 
-            - name: Publish GitHub Release
+            # GitHub's "Immutable releases" repo setting locks a release
+            # the moment it's published — no asset uploads after that
+            # point. softprops/action-gh-release@v2's default flow
+            # (create-then-upload) hits this and fails on the SBOM
+            # attach step. Workaround per the action's own error
+            # message: create as a draft, attach assets while still
+            # mutable, then flip draft→published in a follow-up step.
+            # Both prerelease and final tags go through the same path
+            # so the workflow stays uniform.
+            - name: Create draft GitHub Release with SBOM
               uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
               with:
                   # Use the extracted notes when available; otherwise
@@ -134,4 +143,10 @@ jobs:
                   # (`0.3.0`, `1.0.0`) get `prerelease: false` and the
                   # standard release badge.
                   prerelease: ${{ contains(github.ref_name, '-') }}
+                  draft: true
                   fail_on_unmatched_files: true
+
+            - name: Publish draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh release edit "${{ github.ref_name }}" --draft=false
