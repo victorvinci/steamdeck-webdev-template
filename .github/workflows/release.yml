@@ -128,4 +128,10 @@ jobs:
                   # move it.
                   tag_name: ${{ github.ref_name }}
                   name: ${{ github.ref_name }}
+                  # SemVer pre-release marker is the hyphen — `0.3.0-rc.2`,
+                  # `1.0.0-beta.1`, etc. The action does not infer this from
+                  # the tag name, so pass it explicitly. Clean tags
+                  # (`0.3.0`, `1.0.0`) get `prerelease: false` and the
+                  # standard release badge.
+                  prerelease: ${{ contains(github.ref_name, '-') }}
                   fail_on_unmatched_files: true
