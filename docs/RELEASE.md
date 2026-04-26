@@ -133,7 +133,7 @@ Wait for `ci pass` to complete, then squash-merge via the GitHub UI (the only me
 
 ```sh
 git switch develop && git pull --ff-only origin develop
-gh pr create --base main --head develop --title "release: X.Y.Z" --template release.md
+gh pr create --base main --head develop --title "chore(release): X.Y.Z" --template release.md
 ```
 
 `--template release.md` loads `.github/PULL_REQUEST_TEMPLATE/release.md`, which covers the pre-merge checks, the rebase-merge note, and the post-merge tag/release/sync reminders. Fill in the `X.Y.Z` placeholders and tick the boxes as you go.
