@@ -138,7 +138,8 @@ echo
 # rewrites the local part and produces a broken address.
 echo "==> 1/4  maintainer email"
 inplace_sed "s|victorvinci@protonmail.com|${MAINTAINER_EMAIL}|g" \
-    CODE_OF_CONDUCT.md
+    CODE_OF_CONDUCT.md \
+    .github/workflows/ci-scheduled.yml
 
 echo "==> 2/4  npm scope (@mcb -> @${NPM_SCOPE})"
 inplace_sed "s|@mcb/|@${NPM_SCOPE}/|g" \
@@ -151,7 +152,9 @@ inplace_sed "s|@mcb/|@${NPM_SCOPE}/|g" \
     apps/frontend/src/routes/users.tsx \
     apps/frontend/src/lib/api/users.ts \
     libs/types/README.md \
-    libs/utils/README.md
+    libs/utils/README.md \
+    README.md \
+    .github/workflows/ci-scheduled.yml
 
 echo "==> 3/4  project name (steamdeck-webdev-template -> ${PROJECT_NAME})"
 # package-lock.json holds the project name at the root and at the empty-key
@@ -172,6 +175,7 @@ echo "==> 4/4  github owner (victorvinci -> ${GITHUB_OWNER})"
 inplace_sed "s|victorvinci|${GITHUB_OWNER}|g" \
     package.json \
     .github/CODEOWNERS.txt \
+    .github/workflows/ci-scheduled.yml \
     README.md \
     CONTRIBUTING.md
 
