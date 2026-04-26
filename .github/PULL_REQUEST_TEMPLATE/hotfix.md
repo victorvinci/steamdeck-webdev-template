@@ -1,5 +1,10 @@
 <!--
-  Title format: `hotfix: <short description>` (or `fix: <description>` if you prefer)
+  Title format: use the conventional-commits type that matches the
+  actual change — usually `fix: <short description>`. A bare
+  `hotfix:` type is rejected by commitlint
+  (@commitlint/config-conventional `type-enum`); the "hotfix" intent
+  is already conveyed by the `hotfix/<slug>` branch name and this
+  template, so the type can stay standard.
   Hotfix PRs branch from `main`, rebase-merge into `main`, and skip
   `develop`. A cherry-pick sync PR into `develop` is required post-tag
   (not a merge — develop's linear_history rule rejects merge commits).

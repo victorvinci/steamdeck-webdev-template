@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Changed** release/hotfix PR title formats to satisfy commitlint. `docs/RELEASE.md` step 7 now opens the develop→main PR with `--title "chore(release): X.Y.Z"` (was `release: X.Y.Z`, which fails `@commitlint/config-conventional`'s `type-enum` because `release` isn't a standard conventional-commits type). `.github/PULL_REQUEST_TEMPLATE/release.md` updated to match (title-format header + body prose drop the stray `v` prefix). `.github/PULL_REQUEST_TEMPLATE/hotfix.md` likewise — guidance now points at `fix: <description>` (or whatever standard type matches the change), since the "hotfix" intent is already carried by the `hotfix/<slug>` branch name and the template itself. Caught when PR #52 (`release: 0.3.0-rc.2`) hit a `type must be one of [build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]` failure on the commitlint job.
+
 ## [0.3.0-rc.2] - 2026-04-26
 
 ### Fixed

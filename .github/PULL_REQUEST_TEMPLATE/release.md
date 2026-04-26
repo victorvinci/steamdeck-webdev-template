@@ -1,5 +1,8 @@
 <!--
-  Title format: `release: X.Y.Z`
+  Title format: `chore(release): X.Y.Z`
+  (`release:` alone fails commitlint — `release` isn't in
+  @commitlint/config-conventional's `type-enum`. The `chore(release):`
+  form matches the bump PR's prefix.)
   This PR rebase-merges `develop` into `main`. See `docs/RELEASE.md` for the
   full workflow (including the post-merge tag, GitHub release, and develop
   fast-forward steps).
@@ -10,7 +13,7 @@
 
 ## Summary
 
-Release v`X.Y.Z` — see `CHANGELOG.md` under `## [X.Y.Z]` for the full changelist.
+Release `X.Y.Z` — see `CHANGELOG.md` under `## [X.Y.Z]` for the full changelist.
 
 <!-- Optional: 2–3 bullets calling out headline changes for skim-readers. -->
 
