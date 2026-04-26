@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-rc.4] - 2026-04-26
+
 ### Fixed
 
 - **Fixed** `.github/workflows/release.yml` SBOM upload failed on the rc.3 tag run with `Cannot upload asset sbom.cdx.json to an immutable release`. The repo has GitHub's "Immutable releases" setting on, which locks releases the moment they're published — `softprops/action-gh-release@v2`'s default flow (create-then-upload) fails because the second API call comes too late. Switched to the action's recommended workaround: create as `draft: true` with the SBOM attached while still mutable, then flip draft→published in a follow-up step via `gh release edit --draft=false`. The bug was hidden on rc.2 because rc.2 wasn't actually marked as a prerelease (the [prerelease-flag fix](#) just landed in rc.3) — non-prerelease releases on immutable-release repos take a different path that lets assets attach. rc.3's release was published correctly badged "Pre-release" but with no SBOM attached; the next tag (rc.4 / 0.3.0 / hotfix) will have it. Future cleanup: backfill the SBOM on rc.3 if needed by deleting and re-creating the GitHub Release object (the tag itself is protected by `release-tags` and stays put).
