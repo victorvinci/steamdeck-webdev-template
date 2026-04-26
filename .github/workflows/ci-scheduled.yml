@@ -798,30 +798,25 @@ jobs:
             # belt-and-suspenders: scan for residual template strings in
             # files the script's allowlist might be missing entirely.
             #
-            # Excluded from the scan:
-            #   - CHANGELOG.md, .ai-attribution.jsonl, docs/SECURITY-AUDIT-*
-            #     are point-in-time historical records — the script
-            #     intentionally leaves them alone.
-            #   - scripts/rename-template.sh, docs/FORK.md document the
-            #     rename and reference the strings as literal examples.
+            # The scan logic lives in `scripts/scan-template-residuals.sh`
+            # rather than inline here. That script is intentionally NOT
+            # in `scripts/rename-template.sh`'s allowlist, so its literal
+            # search patterns survive the rename and detect true
+            # residuals. Inlining the patterns here would let the rename
+            # rewrite them (this workflow file IS in the rename
+            # allowlist), causing the scan to silently miss real
+            # residuals while falsely flagging this file's own test-
+            # invocation lines (`foo-fork`, `alice`, `acme`).
+            #
+            # Excluded from the scan (defined in the script): point-in-
+            # time records (CHANGELOG, attribution log, security-audit
+            # snapshots), the rename script and this scanner themselves,
+            # `docs/FORK.md` and `docs/UPGRADE.md` which intentionally
+            # reference the upstream template name.
             - name: Scan for residual template strings
               if: steps.rename.outputs.exit_code == '0'
               id: leftovers
-              run: |
-                  EXCLUDE='^(CHANGELOG\.md|\.ai-attribution\.jsonl|docs/SECURITY-AUDIT-v1\.0\.0|scripts/rename-template\.sh|docs/FORK\.md)'
-                  REMAINING=$(git ls-files | grep -vE "$EXCLUDE" | xargs grep -l 'steamdeck-webdev-template\|@mcb/\|victorvinci' 2>/dev/null || true)
-                  if [ -n "$REMAINING" ]; then
-                      echo "::error::Residual template strings after rename in:"
-                      echo "$REMAINING"
-                      echo ""
-                      echo "These files contain 'steamdeck-webdev-template', '@mcb/', or 'victorvinci'"
-                      echo "but are NOT in scripts/rename-template.sh's allowlist for any sed pass."
-                      echo "Either add them to the appropriate sed pass, or — if they're"
-                      echo "intentionally untouched (point-in-time records) — add them to the"
-                      echo "EXCLUDE regex in this workflow step."
-                      exit 1
-                  fi
-                  echo "OK — no residual template strings in checked-in files."
+              run: ./scripts/scan-template-residuals.sh
 
             - name: Open or update tracking issue on failure
               if: failure()
