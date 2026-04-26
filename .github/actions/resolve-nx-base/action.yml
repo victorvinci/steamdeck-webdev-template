@@ -42,4 +42,14 @@ runs:
               if [ -z "$BASE" ]; then
                 BASE="HEAD~1"
               fi
+              # On a force-push, `github.event.before` points at the
+              # discarded commit, which the runner's clone no longer has.
+              # `nx affected` then runs `git diff <missing> HEAD` and
+              # bails with "fatal: bad object". Validate the chosen base
+              # is reachable; fall back to HEAD~1 (safe because ci.yml
+              # checks out with `fetch-depth: 0`) if not.
+              if ! git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null 2>&1; then
+                echo "::warning::Base '$BASE' is not reachable in this clone (likely a force-push); falling back to HEAD~1."
+                BASE="HEAD~1"
+              fi
               echo "base=$BASE" >> "$GITHUB_OUTPUT"
