@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** `.github/actions/resolve-nx-base/action.yml` — composite action now validates that the resolved base SHA is reachable in the runner's clone, falling back to `HEAD~1` with a `::warning::` if not. On a force-push, `github.event.before` points at the discarded commit and `nx affected`'s `git diff <missing> HEAD` was failing with `fatal: bad object`, blocking CI on develop until the next non-force push. `ci.yml`'s `fetch-depth: 0` makes the `HEAD~1` fallback safe.
+
 ### Changed
 
 - **Changed** release tag scheme to numeric SemVer (no leading `v`). `.github/workflows/release.yml` now triggers on `[0-9]*` tag pushes instead of `v*`, so tags are pushed as `0.3.0` / `1.0.0` / `1.2.3-rc.1` rather than `v0.3.0` etc. Documentation updated in `docs/RELEASE.md` (branch model, ruleset table, all step examples), `docs/FORK.md` (ruleset setup table), `.github/PULL_REQUEST_TEMPLATE/release.md` (title format, post-merge tag command), `.github/PULL_REQUEST_TEMPLATE/bump.md` (attribution scope), `.github/PULL_REQUEST_TEMPLATE/hotfix.md` (post-merge tag command), and `.github/pull_request_template.md` (branch-name hint). The `release-tags` GitHub ruleset must be updated server-side too (Settings → Rules → Rulesets → `release-tags` → Target: `refs/tags/[0-9]*`) — that lives outside this repo and won't be carried by this PR. Action SHA pin comments (e.g. `# v4`) in `.github/workflows/ci.yml` are unchanged because those reference upstream GitHub Actions releases, not this repo's tags.
