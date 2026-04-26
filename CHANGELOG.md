@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Fixed** `.github/workflows/release.yml` now passes `prerelease: ${{ contains(github.ref_name, '-') }}` to `softprops/action-gh-release`, so SemVer pre-release tags (`0.3.0-rc.2`, `1.0.0-beta.1`) are correctly badged "Pre-release" on GitHub. The action does **not** infer pre-release status from the tag name on its own; previously the `0.3.0-rc.2` release was published as a regular release. Clean tags (`0.3.0`, `1.0.0`) get `prerelease: false` and the standard release badge.
+- **Fixed** template rename self-test (`.github/workflows/ci-scheduled.yml` `template-rename` job) was both missing a true residual and falsely flagging itself. Two bugs: (1) the inline scan's grep patterns lived in `ci-scheduled.yml`, which IS in `scripts/rename-template.sh`'s allowlist, so the test-rename pass rewrote `'steamdeck-webdev-template\|@mcb/\|victorvinci'` to `'foo-fork\|@acme/\|alice'`, after which the scan was looking for the test rename targets — guaranteed to find them in this file's own `--project-name foo-fork` / `--github-owner alice` test invocation, while silently missing real residuals; (2) `docs/UPGRADE.md` (added in PR #45) intentionally references `victorvinci/steamdeck-webdev-template.git` as the upstream remote URL forks track, but was in neither the rename allowlist nor the scan's EXCLUDE regex. Extracted scan logic to `scripts/scan-template-residuals.sh` (NOT in any rename pass, so its patterns survive) and added `docs/UPGRADE.md` + the new script itself to EXCLUDE. Auto-filed tracking issue #54 should close once the next scheduled run is green.
+
+### Added
+
+- **Added** `scripts/scan-template-residuals.sh` — scans the working tree for `steamdeck-webdev-template` / `@mcb/` / `victorvinci` strings the rename script missed, with a documented EXCLUDE regex for intentional residuals (point-in-time records and upstream URL references). Lives outside the rename allowlist by design so its search patterns aren't rewritten by the rename run; called from `.github/workflows/ci-scheduled.yml`'s template-rename self-test.
 
 ## [0.3.0-rc.2] - 2026-04-26
 
