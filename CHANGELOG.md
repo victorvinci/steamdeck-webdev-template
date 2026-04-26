@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-rc.1] - 2026-04-26
+
 ### Changed
 
 - **Changed** `tsconfig.base.json` enables `"noUncheckedIndexedAccess": true`. Array/object index access (`arr[0]`, `record["key"]`) now resolves to `T | undefined` instead of `T`, forcing handlers to acknowledge the bounds gap before using the value. Caught zero callsites in this repo on first compile (the only candidate, `countRows[0]?.total ?? 0` in `apps/backend/src/services/users.service.ts:39`, was already defensively written), so the lift is purely forward-protection: future code added by forks can't accidentally bypass bounds-checking. Tuples (`[string, number]`), dot-access (`obj.foo`), and APIs already typed `T | undefined` (`.find()`, `.at()`, `Map.get()`, `process.env.X`) are unaffected. `docs/UPGRADE.md` gains a callout for fork pickups so a fork inheriting the flip knows what to expect.
