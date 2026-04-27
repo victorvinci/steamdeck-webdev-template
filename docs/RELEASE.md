@@ -151,7 +151,15 @@ git push origin X.Y.Z
 
 The `release-tags` ruleset activates on push — from now on the tag can't be deleted or moved without admin bypass.
 
-The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, and publishes the release with the SBOM attached as an asset. No manual `gh release create` needed.
+The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, mints a SLSA build-provenance attestation for that SBOM via `actions/attest-build-provenance`, and publishes the release with the SBOM attached as an asset. No manual `gh release create` needed.
+
+Consumers who want to verify the SBOM came from this repo's release pipeline (and not, say, a tampered mirror) can run:
+
+```sh
+gh attestation verify sbom.cdx.json --repo <owner>/<repo>
+```
+
+The attestation is keyed to the workflow's OIDC identity, so it proves the SBOM was produced by `.github/workflows/release.yml` running against a tag on `main` — anyone who tampers with the SBOM after the fact will fail the verify.
 
 If the workflow fails (e.g. the CHANGELOG wasn't promoted before tagging and the fallback to auto-generated notes isn't what you want), you can re-run it from the Actions tab or publish manually:
 
