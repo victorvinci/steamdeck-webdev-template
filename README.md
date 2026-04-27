@@ -159,6 +159,10 @@ steamdeck-webdev-template/
 
 ## Quick Start
 
+The fastest path is **GitHub Codespaces** or a local **VS Code Dev Container**: click `Code → Codespaces → Create codespace`, or open the repo locally and pick `Reopen in Container`. The devcontainer (`.devcontainer/devcontainer.json`) provisions Node 24 + MySQL 8.4, runs `npm ci && npm run migrate`, and forwards ports 4200 / 3000 / 6006 — from cold start to a working `npm run dev` is ~90 seconds with no host-side setup.
+
+If you'd rather work directly on the host:
+
 ```bash
 git clone git@github.com:victorvinci/steamdeck-webdev-template.git
 cd steamdeck-webdev-template

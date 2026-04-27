@@ -169,7 +169,8 @@ inplace_sed "s|steamdeck-webdev-template|${PROJECT_NAME}|g" \
     docs/RELEASE.md \
     README.md \
     CONTRIBUTING.md \
-    CLAUDE.md
+    CLAUDE.md \
+    .devcontainer/devcontainer.json
 
 echo "==> 4/4  github owner (victorvinci -> ${GITHUB_OWNER})"
 inplace_sed "s|victorvinci|${GITHUB_OWNER}|g" \
