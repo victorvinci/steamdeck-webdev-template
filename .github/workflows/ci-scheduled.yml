@@ -881,3 +881,249 @@ jobs:
                           });
                           core.notice(`Closed resolved template-rename-drift issue #${issue.number}`);
                       }
+
+    # ----- e2e flake detection (Playwright) ---------------------------------
+    #
+    # Runs `frontend-e2e` 3 times back-to-back and aggregates per-test
+    # outcomes across the runs. Tests that pass in *some* runs and fail in
+    # *others* are flagged as flaky and surfaced via a tracking issue —
+    # this is the strongest signal we get for "fix-it-before-release"
+    # pressure on a class of bug that's invisible in green/red CI runs.
+    #
+    # Why frontend-e2e only (v1):
+    #   Browser timing, animation settling, and network races are where
+    #   ~95% of e2e flakes live. backend-e2e is Jest-based and primarily
+    #   tests deterministic API responses; if it ever starts flaking,
+    #   add a parallel job that runs it under jest-circus with --runInBand
+    #   and aggregates the same way.
+    #
+    # Why not run inside the playwright-image GHCR container:
+    #   That image is pushed by ci.yml's `playwright-image` job, which
+    #   only runs on PR/push events — scheduled runs would race the
+    #   image's existence. On the host runner, Firefox launches without
+    #   the SYS_ADMIN cap quirk that affects in-container runs.
+    #
+    # Cost: ~25-30 min wall clock for 3 runs of the suite. Fits the
+    # free-tier monthly budget at the existing weekly cadence.
+    e2e-flake-detect:
+        name: e2e flake detection
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        permissions:
+            contents: read
+            issues: write
+        services:
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_DATABASE: app
+                    MYSQL_USER: app
+                    MYSQL_PASSWORD: app
+                    MYSQL_ROOT_PASSWORD: app
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -h localhost -u root -papp"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=20
+        env:
+            HOST: 0.0.0.0
+            DB_HOST: 127.0.0.1
+            DB_PORT: '3306'
+            DB_NAME: app
+            DB_USER: app
+            DB_PASSWORD: app
+            FRONTEND_URL: http://localhost:4200
+            VITE_API_URL: http://localhost:3000
+            FLAKE_RUN_COUNT: '3'
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+
+            - name: Install Playwright browsers
+              # `--with-deps` pulls the OS packages Playwright needs.
+              # ubuntu-latest already has most of them but the command
+              # is idempotent and cheap when nothing's missing.
+              run: npx playwright install --with-deps firefox chromium
+
+            - name: Install mysql-client
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
+
+            - name: Load schema and seed data
+              env:
+                  MYSQL_PWD: app
+              run: mysql -h 127.0.0.1 -u app app < db/schema.sql
+
+            - name: Run frontend-e2e ${{ env.FLAKE_RUN_COUNT }}× and capture JSON
+              # Loop the suite N times. Each iteration writes the JSON
+              # report to a unique file via PLAYWRIGHT_JSON_OUTPUT_NAME,
+              # which the JSON reporter respects when `outputFile` isn't
+              # set in playwright.config. Continue across failures so we
+              # see the WHOLE distribution — not just the first red run.
+              run: |
+                  set -uo pipefail
+                  mkdir -p flake-reports
+                  for i in $(seq 1 "$FLAKE_RUN_COUNT"); do
+                      echo "::group::Run $i / $FLAKE_RUN_COUNT"
+                      PLAYWRIGHT_JSON_OUTPUT_NAME="$PWD/flake-reports/run-$i.json" \
+                          npx nx e2e frontend-e2e -- --reporter=json --workers=1 || true
+                      echo "::endgroup::"
+                  done
+                  ls -la flake-reports
+
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              if: always()
+              with:
+                  name: flake-reports
+                  path: flake-reports/
+                  retention-days: 14
+
+            - name: Aggregate flake outcomes
+              id: aggregate
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const path = require('path');
+
+                      // Walk Playwright's JSON report — nested suites/specs/tests.
+                      // For each test, status comes from the most recent result
+                      // (Playwright records retries; we want the final outcome).
+                      function* walk(suite, file) {
+                          for (const sub of suite.suites ?? []) yield* walk(sub, file ?? sub.file);
+                          for (const spec of suite.specs ?? []) {
+                              for (const test of spec.tests ?? []) {
+                                  const last = test.results?.[test.results.length - 1];
+                                  if (!last) continue;
+                                  yield {
+                                      id: `${spec.file ?? file}::${spec.title}`,
+                                      status: last.status,  // passed | failed | timedOut | skipped
+                                  };
+                              }
+                          }
+                      }
+
+                      const reportDir = 'flake-reports';
+                      const outcomes = new Map();  // id -> { passed: n, failed: n, total: n }
+                      const files = fs.readdirSync(reportDir).filter((f) => f.endsWith('.json'));
+                      if (files.length === 0) {
+                          core.setFailed('No flake-reports/*.json — Playwright produced no JSON output');
+                          return;
+                      }
+                      for (const f of files) {
+                          const json = JSON.parse(fs.readFileSync(path.join(reportDir, f), 'utf8'));
+                          for (const entry of walk(json)) {
+                              const o = outcomes.get(entry.id) ?? { passed: 0, failed: 0, total: 0 };
+                              o.total += 1;
+                              if (entry.status === 'passed') o.passed += 1;
+                              else if (entry.status === 'failed' || entry.status === 'timedOut') o.failed += 1;
+                              outcomes.set(entry.id, o);
+                          }
+                      }
+
+                      const flakes = [];
+                      const broken = [];
+                      for (const [id, o] of outcomes) {
+                          if (o.passed > 0 && o.failed > 0) flakes.push({ id, ...o });
+                          else if (o.failed === o.total && o.failed > 0) broken.push({ id, ...o });
+                      }
+
+                      core.setOutput('flake_count', String(flakes.length));
+                      core.setOutput('broken_count', String(broken.length));
+                      core.setOutput('total_tests', String(outcomes.size));
+                      core.setOutput('runs', String(files.length));
+
+                      if (flakes.length === 0 && broken.length === 0) {
+                          core.info(`All ${outcomes.size} tests stable across ${files.length} runs.`);
+                      } else {
+                          core.info(`${flakes.length} flake(s), ${broken.length} broken-everywhere across ${files.length} runs.`);
+                      }
+
+                      // Stash for the issue-update step.
+                      const summary = {
+                          runs: files.length,
+                          total_tests: outcomes.size,
+                          flakes,
+                          broken,
+                      };
+                      fs.writeFileSync('flake-reports/summary.json', JSON.stringify(summary, null, 2));
+
+            - name: Open or update flake tracking issue
+              if: steps.aggregate.outputs.flake_count != '0'
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const fs = require('fs');
+                      const label = 'flake';
+                      const summary = JSON.parse(fs.readFileSync('flake-reports/summary.json', 'utf8'));
+
+                      const fmtRow = (f) =>
+                          `- \`${f.id}\` — ${f.passed}/${f.total} passed, ${f.failed}/${f.total} failed`;
+
+                      const body = [
+                          `Weekly flake-detection run found **${summary.flakes.length}** flaky test(s) across ${summary.runs} consecutive runs of \`frontend-e2e\`.`,
+                          ``,
+                          `A "flake" is a test that passed in some runs and failed in others — non-deterministic outcomes. These are the highest-priority bugs to fix because they erode trust in the test suite faster than any other failure mode.`,
+                          ``,
+                          `### Flakes`,
+                          ``,
+                          ...summary.flakes.map(fmtRow),
+                          ``,
+                          summary.broken.length > 0
+                              ? `### Broken in all runs (likely real failures, not flakes)\n\n${summary.broken.map(fmtRow).join('\n')}\n`
+                              : '',
+                          ``,
+                          `### Triage`,
+                          ``,
+                          `1. Pull \`flake-reports\` artifact from this workflow run for full Playwright JSON output (traces, screenshots).`,
+                          `2. Reproduce locally: \`for i in 1 2 3; do npx nx e2e frontend-e2e; done\`. Most flakes need 5-10 local runs to surface.`,
+                          `3. Common causes: implicit waits replaced with \`waitFor*\` predicates, animation settling, fetch races against \`networkidle\`, shared state between tests.`,
+                          ``,
+                          `---`,
+                          `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                          ``,
+                          `Auto-filed by \`.github/workflows/ci-scheduled.yml\`. Updated in place each week — close it when the flake list is empty.`,
+                      ].filter(Boolean).join('\n');
+
+                      const title = `e2e flake detection: ${summary.flakes.length} flaky test(s) on develop`;
+
+                      try {
+                          await github.rest.issues.getLabel({ ...context.repo, name: label });
+                      } catch {
+                          await github.rest.issues.createLabel({
+                              ...context.repo, name: label, color: 'fbca04',
+                              description: 'A test fails non-deterministically — eroding suite trust',
+                          });
+                      }
+
+                      const existing = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: label, per_page: 10,
+                      });
+                      if (existing.data.length > 0) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: existing.data[0].number, title, body,
+                          });
+                          core.notice(`Updated flake tracking issue #${existing.data[0].number}`);
+                      } else {
+                          const created = await github.rest.issues.create({
+                              ...context.repo, title, body, labels: [label, 'ci'],
+                          });
+                          core.notice(`Filed flake tracking issue #${created.data.number}`);
+                      }
+
+            - name: Close stale flake issue when clean
+              if: steps.aggregate.outputs.flake_count == '0'
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+              with:
+                  script: |
+                      const label = 'flake';
+                      const stale = await github.rest.issues.listForRepo({
+                          ...context.repo, state: 'open', labels: label, per_page: 10,
+                      });
+                      for (const issue of stale.data) {
+                          await github.rest.issues.update({
+                              ...context.repo, issue_number: issue.number, state: 'closed',
+                          });
+                          core.notice(`Closed resolved flake issue #${issue.number}`);
+                      }
