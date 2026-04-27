@@ -190,6 +190,52 @@ jobs:
                   if-no-files-found: ignore
                   retention-days: 7
 
+    # PR-time gzipped bundle-size diff vs. the PR base. Posts a sticky
+    # comment via preactjs/compressed-size-action — head builds, base
+    # builds, both totals + per-file diffs go in the comment, sorted by
+    # change size. ci-scheduled.yml has a weekly bundle-size job that
+    # tracks long-term trend against a stored baseline; this one is for
+    # the dev who shipped the regression today and needs feedback before
+    # merge, not 6 days later.
+    #
+    # Gated on `frontend` so backend-only and docs-only PRs skip it. Only
+    # runs on pull_request (the action requires both head and base SHAs).
+    # `strip-hash` collapses Vite's content-hash suffix (`index-BbeTQOkI.js`
+    # → `index-*.js`) so per-file rows match across builds and
+    # `collapse-unchanged: true` can hide them — without it every PR
+    # would show every chunk as added/removed.
+    bundle-size:
+        name: bundle size
+        needs: detect
+        if: >-
+            needs.detect.outputs.frontend == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: preactjs/compressed-size-action@66325aad6443cb7cf89c4bfcd414aea2367cda94 # v2.9.1
+              env:
+                  # Vite inlines VITE_* at build time. Without this, the
+                  # frontend Zod env check throws on first script eval and
+                  # the build fails. Value is irrelevant for size
+                  # measurement — it just has to satisfy z.string().url().
+                  # Mirrors the convention in ci-scheduled.yml's bundle job.
+                  VITE_API_URL: http://localhost:3000
+              with:
+                  install-script: 'npm ci'
+                  build-script: 'build:fe'
+                  pattern: 'dist/apps/frontend/**/*.{js,css}'
+                  # Vite default hash is 8 base64url chars; \w covers the
+                  # common case (alphanumeric + underscore). Hyphens in
+                  # hashes are rare in practice for 8-char digests.
+                  strip-hash: '-(\w{8,})\.(js|css)$'
+                  compression: 'gzip'
+
     # Migration safety lint — guards db/migrations/ against destructive DDL
     # patterns (DROP TABLE without IF EXISTS, DROP DATABASE, etc.) and
     # filename / numbering hygiene. Gated on `migrations` so PRs that don't
