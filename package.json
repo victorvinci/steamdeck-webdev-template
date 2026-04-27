@@ -18,6 +18,7 @@
         "storybook": "nx storybook frontend",
         "lint": "nx run-many --target=lint",
         "lint:fix": "nx run-many --target=lint --fix",
+        "lint:migrations": "bash scripts/lint-migrations.sh",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "typecheck": "nx run-many --target=typecheck",

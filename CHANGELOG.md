@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-04-26
+### Added
+
+- **Added** `scripts/lint-migrations.sh` — guard rails for `db/migrations/` that fail CI on destructive DDL footguns: `DROP TABLE` / `DROP COLUMN` without `IF EXISTS`, `DROP DATABASE`, duplicate numeric prefixes, and bad filenames. Warnings (non-blocking) cover `DROP INDEX` without `IF EXISTS`, `TRUNCATE`, `RENAME TABLE`, and numbering gaps. Per-rule overrides via `-- lint-migrations: allow-<rule>` SQL comments for deliberate, reviewed deviations. Wired as a new `migration lint` job in `.github/workflows/ci.yml`, gated on the new `migrations` paths-filter so PRs that don't touch `db/migrations/` skip the job entirely. Also runs in the husky/lint-staged pre-commit hook (`.lintstagedrc.json`) when staged files include `db/migrations/*.sql`. Exposed as `npm run lint:migrations`. Motivation: `scripts/migrate.ts` already documents that MySQL DDL implicitly commits and cannot be rolled back, so the safety net has to live at author time, not run time.
 
 ### Release
 
