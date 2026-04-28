@@ -126,11 +126,13 @@ steamdeck-webdev-template/
 │   └── utils/                  # @mcb/utils — small dependency-free helpers
 ├── db/
 │   ├── migrations/             # Numbered SQL migration files (001_initial.sql, …)
-│   └── schema.sql              # Bootstrap script — aggregates migrations for first init
+│   ├── schema.sql              # Bootstrap script — aggregates migrations for first init
+│   └── seed.sql                # Local-only dev seed data; loaded by `npm run db:reset`
 ├── scripts/
 │   ├── dev-setup.sh            # Idempotent dev bootstrap (auto-detects docker vs native mysqld)
 │   ├── dev-setup-native.sh     # Native MySQL fallback used when docker is unavailable
 │   ├── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+│   ├── db-reset.ts             # Drop tables → migrate → seed; refuses in production
 │   ├── check-env.ts            # Diffs `.env` against `.env.example`; runs ahead of `npm run dev`
 │   ├── lint-migrations.sh      # Pre-commit + CI safety lint for db/migrations/*.sql
 │   ├── extract-changelog-section.sh  # Pulls a single version's notes out of CHANGELOG.md
@@ -303,6 +305,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | **Database**                   |                                                                                                                                               |
 | `npm run migrate`              | Apply pending database migrations from `db/migrations/`                                                                                       |
 | `npm run migrate:status`       | Show which migrations are applied vs pending                                                                                                  |
+| `npm run db:reset`             | Drop every table, re-apply all migrations, load `db/seed.sql`. Refuses if `NODE_ENV=production`                                               |
 | **Build**                      |                                                                                                                                               |
 | `npm run build`                | Runs `check` first, then builds every project (outputs to `dist/`)                                                                            |
 | `npm run clean`                | Remove `dist/`, `.nx/cache`, `storybook-static`, and `coverage` build artifacts                                                               |
@@ -517,7 +520,15 @@ npm run migrate:status   # show applied vs pending
 
 ### Resetting the local database
 
-Destroys all data:
+The fastest path — drops every table, re-applies all migrations, then loads `db/seed.sql` for a predictable dev dataset. Works against both the Docker and native MySQL setups (it just runs SQL against the configured `DB_*`):
+
+```bash
+npm run db:reset
+```
+
+The script refuses to run when `NODE_ENV=production`. It's intentionally paranoid — destroying data on the wrong machine is worse than a false negative on a misconfigured laptop.
+
+If you want to wipe at the OS / container level instead (e.g. you suspect MySQL itself is in a bad state, not just the schema):
 
 ```bash
 # Docker path — wipes the container volume:
