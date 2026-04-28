@@ -4,6 +4,8 @@ A full-stack Nx monorepo boilerplate with a React frontend, an Express backend, 
 
 **Live demo:** [Frontend app](https://victorvinci.github.io/steamdeck-webdev-template/) · [Storybook](https://victorvinci.github.io/steamdeck-webdev-template/storybook/)
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/victorvinci/steamdeck-webdev-template/badge)](https://scorecard.dev/viewer/?uri=github.com/victorvinci/steamdeck-webdev-template)
+
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 > **Built on a Steam Deck running SteamOS.** This template was developed end-to-end inside a **Linux Mint Distrobox container** on SteamOS, because SteamOS's root filesystem is immutable and read-only by default — you can't install system packages (node, mysql, docker) onto the host without unlocking it, and unlocking resets on every OS update. Running development inside Distrobox sidesteps that entirely: the container is a normal mutable Mint install with its own `/usr`, `/home`, and package manager, and the host stays pristine.
@@ -212,6 +214,8 @@ npm run setup   # detects no docker → runs native bootstrap
 npm run dev
 ```
 
+`npm run dev` runs `npm run check-env` between `setup` and the `serve` step — it diffs `.env` against `.env.example` and exits early with a friendly message if any required key is missing or empty, so you never get a confusing `undefined.foo` failure on the first request.
+
 ### Truly by-hand (no script)
 
 If you'd rather skip the script entirely:
@@ -269,6 +273,8 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | `npm run typecheck`            | `tsc --noEmit` across every project                                                                                                           |
 | `npm run check`                | `format:check` + `lint` + `typecheck` + `test` in sequence — run this before every PR                                                         |
 | `npm run check:affected`       | Same as `check`, but only on Nx-affected projects                                                                                             |
+| `npm run preflight`            | `check` + `e2e` + Storybook build — full local CI dry-run, catches what `check` skips                                                         |
+| `npm run check-env`            | Verifies `.env` has every key declared (uncommented) in `.env.example`; fails fast if not                                                     |
 | **Unit tests**                 |                                                                                                                                               |
 | `npm test`                     | All unit tests (all projects)                                                                                                                 |
 | `npm run test:fe`              | Frontend tests (Vitest)                                                                                                                       |

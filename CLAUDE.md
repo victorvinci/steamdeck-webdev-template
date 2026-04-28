@@ -28,6 +28,7 @@ Always prefer the npm scripts in `package.json` over raw `nx` invocations — th
 - Test all: `npm test` • Frontend: `npm run test:fe` • Backend: `npm run test:be`
 - All gates in one go: `npm run check` (format:check + lint + typecheck + test)
 - Affected-only gates: `npm run check:affected`
+- Full local CI dry-run: `npm run preflight` (`check` + `e2e` + Storybook build) — runs everything `check` skips, so a green preflight ≈ green CI
 - Build everything (runs `check` first): `npm run build`
 - Clean build artifacts: `npm run clean`
 - DB migrations: `npm run migrate` (apply pending) • `npm run migrate:status` (show applied vs pending)

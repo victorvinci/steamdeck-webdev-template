@@ -34,9 +34,11 @@
         "e2e:be": "nx e2e backend-e2e",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
         "check:affected": "npm run format:check && nx affected -t lint typecheck test",
+        "preflight": "npm run check && npm run e2e && nx run frontend:build-storybook",
         "migrate": "tsx scripts/migrate.ts",
         "migrate:status": "tsx scripts/migrate.ts --status",
-        "dev": "npm run setup && nx run-many --target=serve --projects=frontend,backend --parallel",
+        "check-env": "tsx scripts/check-env.ts",
+        "dev": "npm run setup && npm run check-env && nx run-many --target=serve --projects=frontend,backend --parallel",
         "build": "npm run check && nx run-many --target=build",
         "clean": "rm -rf dist .nx/cache apps/frontend/storybook-static coverage"
     },
