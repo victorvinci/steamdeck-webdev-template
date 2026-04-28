@@ -232,7 +232,22 @@ jobs:
               with:
                   node-version-file: .nvmrc
                   cache: npm
+            # `continue-on-error: true` so a build failure on the BASE side
+            # doesn't fail the workflow. The case this guards: a PR that
+            # introduces the `build:fe` npm script itself (this very PR
+            # being one such case). The action runs `npm run build:fe` on
+            # both head and base SHAs; if base predates the script's
+            # introduction, base build fails and so does the action.
+            #
+            # Bundle-size is intentionally NOT in `ci-pass` needs (it's
+            # informational), so removing this guard wouldn't block merge —
+            # but a red-X on every PR until the script lands on the base
+            # branch is noisy. The `continue-on-error` keeps the step
+            # reportable while letting the workflow finish green; once
+            # `build:fe` exists on the base branch every subsequent PR
+            # produces a real diff.
             - uses: preactjs/compressed-size-action@66325aad6443cb7cf89c4bfcd414aea2367cda94 # v2.9.1
+              continue-on-error: true
               env:
                   # Vite inlines VITE_* at build time. Without this, the
                   # frontend Zod env check throws on first script eval and
