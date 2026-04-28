@@ -457,6 +457,52 @@ jobs:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
             - run: npx nx run frontend:build-storybook
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: storybook-static
+                  path: apps/frontend/storybook-static
+                  retention-days: 1
+                  if-no-files-found: error
+
+    # Storybook smoke test — every story is opened in Chromium via
+    # @storybook/test-runner and asserted to render without errors. CLAUDE.md
+    # mandates a `*.stories.tsx` per component but nothing else verifies the
+    # stories actually compile + render after a refactor; this is the gate.
+    #
+    # Runs against the static build produced by `storybook-build` (downloaded
+    # as an artifact) instead of rebuilding from scratch — saves ~1 min per PR.
+    # http-server + wait-on are pulled on-demand via `npx -y` so they're not
+    # part of `package.json`'s devDependencies (one-shot use, ~30s install
+    # cached by the runner).
+    storybook-test:
+        name: storybook test
+        needs: [storybook-build, detect]
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect.outputs.frontend == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+              with:
+                  name: storybook-static
+                  path: apps/frontend/storybook-static
+            - name: Install Playwright browsers (Chromium)
+              # test-runner ships Playwright as a dependency; it just needs the
+              # Chromium binary fetched. Other browsers aren't worth the install
+              # cost — a story that renders in Chromium will render anywhere.
+              run: npx playwright install --with-deps chromium
+            - name: Run test-storybook
+              # Pattern from Storybook's official "Run in CI" recipe:
+              #   1. Serve the static build on :6006
+              #   2. Wait for the port (with timeout) before launching tests
+              #   3. test-storybook walks every *.stories.* and renders it
+              # `concurrently -k -s first` kills the http-server when the
+              # tests finish (success or failure) so the job doesn't hang.
+              run: |
+                  npx -y concurrently -k -s first -n "SB,TEST" \
+                    "npx -y http-server apps/frontend/storybook-static -p 6006 -s" \
+                    "npx -y wait-on tcp:127.0.0.1:6006 --timeout 60000 && npm run test:storybook"
 
     # ---------- e2e ----------
 
@@ -653,6 +699,7 @@ jobs:
             - detect
             - check
             - storybook-build
+            - storybook-test
             - playwright-image
             - e2e
             - commitlint

@@ -298,6 +298,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | `npm run test:be`              | Backend tests (Jest)                                                                                                                          |
 | `npm run test:types`           | `libs/types` tests                                                                                                                            |
 | `npm run test:utils`           | `libs/utils` tests                                                                                                                            |
+| `npm run test:storybook`       | Smoke-test every story (renders without errors). Requires `npm run storybook` running in another terminal at `:6006`                          |
 | **E2E tests**                  |                                                                                                                                               |
 | `npm run e2e`                  | All e2e suites (`frontend-e2e` + `backend-e2e`)                                                                                               |
 | `npm run e2e:fe`               | Frontend e2e only (Playwright)                                                                                                                |
@@ -322,6 +323,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 - **Unit tests** live next to source as `*.spec.ts(x)` — Vitest in the frontend / `libs/types`, Jest in the backend / `libs/utils`.
 - **E2E tests** live in `apps/frontend-e2e` (Playwright) and `apps/backend-e2e` (Jest integration tests).
 - **Storybook stories** are mandatory for every new frontend component (`*.stories.tsx`, co-located). The `@storybook/addon-a11y` addon runs axe-core accessibility audits in the Storybook panel; core essentials (controls, actions, viewport, docs) are built into Storybook 10.
+- **Storybook smoke tests** run via `@storybook/test-runner` — every `*.stories.tsx` is opened in headless Chromium and asserted to render without errors. Run locally with `npm run storybook` in one terminal and `npm run test:storybook` in another, or let the `storybook test` CI job catch regressions on PRs (gated on the same `frontend` paths-filter as the build).
 
 ```bash
 npm test             # all unit tests
@@ -423,13 +425,15 @@ Runs on every pull request (and on push to `main` / `develop` as the non-affecte
 
 - `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates the heavy jobs (`check`, `storybook-build`, `e2e`, `commitlint`) — docs-only PRs pay only ~1 min (detect + attribution-guard + ci-pass) while branch protection stays unblocked. `attribution-guard` intentionally isn't gated by `code`, since AI commits can touch docs/workflows/configs and still owe a JSONL entry
 - `check` — `format:check` + `nx affected -t lint typecheck test` + `nx affected -t build`, wrapped in an Nx Cloud CI run for distributed cache + self-healing. Uploads `dist/` as an artifact. Quality gates and build are merged into one job to avoid a redundant checkout + `npm ci` on a second runner
-- `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter)
+- `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter). Uploads the static build as a 1-day artifact so the next job can reuse it.
+- `storybook-test` — `@storybook/test-runner` opens every story in headless Chromium and asserts it renders without errors (catches stale prop renames, deleted exports, throw-on-mount regressions that the build alone wouldn't fail on). Downloads the static build from `storybook-build` instead of rebuilding — saves ~1 min per PR.
+- `markdown-lint` — `markdownlint-cli2` over user-facing docs. Gated on a `markdown` paths-filter so PRs without MD changes skip it.
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
 - `attribution-guard` — runs on every non-draft PR and enforces two rules. (1) If `apps/` or `libs/` changed, a `CHANGELOG.md` entry is required. (2) If any commit in the PR carries an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex, …), the PR must also contain at least one net-new line in `.ai-attribution.jsonl`. Human-only PRs don't need a JSONL append. Automation bots (dependabot, renovate, github-actions) are explicitly excluded from the trailer match
 - `ci-pass` — aggregator status check. Point branch protection at this single job instead of listing every job by name. It passes when every upstream job succeeded or was intentionally skipped (e.g. `storybook-build` on a backend-only PR), and fails if any upstream job failed or was cancelled.
 
-`storybook-build` and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
+`storybook-build`, `storybook-test`, and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
 
 ### Weekly (`.github/workflows/ci-scheduled.yml`)
 
@@ -445,6 +449,10 @@ Runs every Monday at 05:23 UTC, also `workflow_dispatch`-able on demand. Designe
 ### SAST (`.github/workflows/codeql.yml`)
 
 GitHub CodeQL on JS/TS. Runs on every PR and weekly via cron — **not** on push-to-main/develop, because in a PR-based workflow the PR run covers the same code and a post-merge re-run would just double-count minutes. `workflow_dispatch` is enabled so you can re-run manually without pushing an empty commit.
+
+### Supply-chain (`.github/workflows/scorecard.yml`)
+
+OSSF Scorecard runs on push-to-main, weekly via cron (off-cycle from CodeQL), on `branch_protection_rule` events (regression catcher), and on `workflow_dispatch`. SARIF reports land in the GitHub Security tab; the public score is hosted at `scorecard.dev` and renders the badge at the top of this README. Complements CodeQL — CodeQL is SAST on the source, Scorecard is configuration / process scanning on the repo itself (catches branch-protection drift, unpinned action SHAs, missing signed releases, dangerous-workflow patterns).
 
 ### GitHub Pages (`.github/workflows/pages.yml`)
 
