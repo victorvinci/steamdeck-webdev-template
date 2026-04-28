@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** `bundle-size` CI job in `.github/workflows/ci.yml` was failing on PR #62 with `EBADENGINE Required: {"node":">=24.0.0"}` — `preactjs/compressed-size-action@v2.9.1` itself runs on Node 20 (its action runtime) and the `npm ci` it spawns inherited that Node version, but `package.json`'s `engines.node` is pinned `>=24`. Added an `actions/setup-node@v4` step before the action that reads `.nvmrc` and switches PATH to Node 24, so the spawned `npm ci` finds a satisfying engine. Mirrors the same setup the `setup-node-deps` composite action uses for every other CI job.
+
 ### Added
 
 - **Added** Storybook smoke testing via `@storybook/test-runner@0.24.3` (`npm run test:storybook` + new `storybook-test` CI job in `.github/workflows/ci.yml`). Every `*.stories.tsx` is opened in headless Chromium and asserted to render without errors — catches stale prop renames, deleted exports, and throw-on-mount regressions that the build alone wouldn't fail on. CLAUDE.md mandated a story per component but nothing previously verified the stories actually rendered after a refactor; this is the gate. The CI job downloads the static build produced by `storybook-build` (uploaded as a 1-day artifact) instead of rebuilding from scratch — saves ~1 min per PR. `concurrently -k -s first` wraps `http-server` + `wait-on` (both pulled on-demand via `npx -y` so they stay out of `package.json`'s devDependencies) so the http-server is killed automatically when the tests finish, success or failure. Added to `ci-pass` needs so a broken story blocks merge. Documented in `README.md`'s Testing section + Daily Development table; CI/CD section updated with the new `storybook-test` and `markdown-lint` jobs and a new "Supply-chain" subsection covering `scorecard.yml`.

@@ -222,6 +222,16 @@ jobs:
             pull-requests: write
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            # The compressed-size-action runs on Node 20 (its own runtime),
+            # but the `npm ci` it spawns inherits whichever Node is on PATH.
+            # Without this setup-node step it'd be Node 20 and `npm ci`
+            # would fail with EBADENGINE because `engines.node` in
+            # package.json pins >=24. Pulling node-version-file from .nvmrc
+            # keeps this in lock-step with the rest of CI.
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
             - uses: preactjs/compressed-size-action@66325aad6443cb7cf89c4bfcd414aea2367cda94 # v2.9.1
               env:
                   # Vite inlines VITE_* at build time. Without this, the
