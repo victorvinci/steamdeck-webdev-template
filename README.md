@@ -4,6 +4,8 @@ A full-stack Nx monorepo boilerplate with a React frontend, an Express backend, 
 
 **Live demo:** [Frontend app](https://victorvinci.github.io/steamdeck-webdev-template/) · [Storybook](https://victorvinci.github.io/steamdeck-webdev-template/storybook/)
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/victorvinci/steamdeck-webdev-template/badge)](https://scorecard.dev/viewer/?uri=github.com/victorvinci/steamdeck-webdev-template)
+
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 > **Built on a Steam Deck running SteamOS.** This template was developed end-to-end inside a **Linux Mint Distrobox container** on SteamOS, because SteamOS's root filesystem is immutable and read-only by default — you can't install system packages (node, mysql, docker) onto the host without unlocking it, and unlocking resets on every OS update. Running development inside Distrobox sidesteps that entirely: the container is a normal mutable Mint install with its own `/usr`, `/home`, and package manager, and the host stays pristine.
@@ -36,6 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - [Daily Development](#daily-development)
 - [Testing](#testing)
 - [API Surface](#api-surface)
+- [CI / CD](#ci--cd)
 - [Database](#database)
 - [Environment Variables](#environment-variables)
 - [Production Deployment](#production-deployment)
@@ -98,7 +101,7 @@ The boundary is: **patterns and infrastructure that every web app needs** (typed
 
 ## Project Structure
 
-```
+```text
 steamdeck-webdev-template/
 ├── apps/
 │   ├── frontend/               # React + Vite + TanStack Router
@@ -123,18 +126,30 @@ steamdeck-webdev-template/
 │   └── utils/                  # @mcb/utils — small dependency-free helpers
 ├── db/
 │   ├── migrations/             # Numbered SQL migration files (001_initial.sql, …)
-│   └── schema.sql              # Bootstrap script — aggregates migrations for first init
+│   ├── schema.sql              # Bootstrap script — aggregates migrations for first init
+│   └── seed.sql                # Local-only dev seed data; loaded by `npm run db:reset`
 ├── scripts/
 │   ├── dev-setup.sh            # Idempotent dev bootstrap (auto-detects docker vs native mysqld)
 │   ├── dev-setup-native.sh     # Native MySQL fallback used when docker is unavailable
-│   └── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+│   ├── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+│   ├── db-reset.ts             # Drop tables → migrate → seed; refuses in production
+│   ├── check-env.ts            # Diffs `.env` against `.env.example`; runs ahead of `npm run dev`
+│   ├── lint-migrations.sh      # Pre-commit + CI safety lint for db/migrations/*.sql
+│   ├── extract-changelog-section.sh  # Pulls a single version's notes out of CHANGELOG.md
+│   ├── rename-template.sh      # Renames the template for a fresh fork (project, npm scope, owner)
+│   ├── scan-template-residuals.sh    # Self-test that the rename script left no template strings behind
+│   └── steamdeck/              # Steam Deck host helpers (separately versioned, not part of the build)
+├── .devcontainer/              # Dev Containers / Codespaces config (Open in Codespaces → ready in ~90s)
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # Bug report and feature request issue forms
 │   ├── pull_request_template.md
+│   ├── PULL_REQUEST_TEMPLATE/  # Specialized templates (release / hotfix / hotfix-sync / bump)
 │   ├── actions/                # Reusable composite actions (setup-node-deps, resolve-nx-base)
+│   ├── docker/                 # Pre-baked Playwright + mysql-client image used by the e2e job
 │   └── workflows/              # CI (ci.yml), scheduled checks (ci-scheduled.yml),
-│                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml),
-│                               #   GitHub Pages deploy (pages.yml)
+│                               #   CodeQL SAST (codeql.yml), OSSF Scorecard (scorecard.yml),
+│                               #   auto-draft PRs (force-draft.yml), GitHub Pages (pages.yml),
+│                               #   release pipeline (release.yml), PR-size labeler (pr-size.yml)
 ├── docker-compose.yml          # Local MySQL service
 ├── nx.json                     # Nx workspace config (plugins, namedInputs, targetDefaults)
 ├── tsconfig.base.json          # Root TypeScript config (path aliases: @mcb/types, @mcb/utils)
@@ -142,6 +157,8 @@ steamdeck-webdev-template/
 ├── renovate.json               # Renovate dependency automation (grouped by ecosystem)
 ├── lighthouserc.json           # Lighthouse CI assertions (weekly scheduled run)
 ├── commitlint.config.js        # Conventional Commits enforcement
+├── .markdownlint-cli2.jsonc    # Markdown lint rules (Prettier-aware; user-doc scoped via ignores)
+├── .ai-attribution.jsonl       # Append-only AI provenance log — see CLAUDE.md
 ├── .gitattributes              # LF enforcement, binary markers, generated-file collapse
 ├── .dockerignore               # Keeps Docker build context small for future Dockerfiles
 └── .env.example                # Template — copy to .env
@@ -158,6 +175,10 @@ steamdeck-webdev-template/
 ---
 
 ## Quick Start
+
+The fastest path is **GitHub Codespaces** or a local **VS Code Dev Container**: click `Code → Codespaces → Create codespace`, or open the repo locally and pick `Reopen in Container`. The devcontainer (`.devcontainer/devcontainer.json`) provisions Node 24 + MySQL 8.4, runs `npm ci && npm run migrate`, and forwards ports 4200 / 3000 / 6006 — from cold start to a working `npm run dev` is ~90 seconds with no host-side setup.
+
+If you'd rather work directly on the host:
 
 ```bash
 git clone git@github.com:victorvinci/steamdeck-webdev-template.git
@@ -177,12 +198,12 @@ npm run dev
 
 You should now have:
 
-- **Frontend** → http://localhost:4200
-- **Backend** → http://localhost:3000
+- **Frontend** → <http://localhost:4200>
+- **Backend** → <http://localhost:3000>
 - **Health checks:**
-    - http://localhost:3000/api/health/live — liveness, no dependencies touched (`{ data: { status: "ok" } }`)
-    - http://localhost:3000/api/health/ready — readiness, pings MySQL (`{ data: { status: "ok", db: "connected" } }`; `503` if DB is unreachable)
-    - http://localhost:3000/api/health — back-compat alias for `/ready` (same response shape)
+    - <http://localhost:3000/api/health/live> — liveness, no dependencies touched (`{ data: { status: "ok" } }`)
+    - <http://localhost:3000/api/health/ready> — readiness, pings MySQL (`{ data: { status: "ok", db: "connected" } }`; `503` if DB is unreachable)
+    - <http://localhost:3000/api/health> — back-compat alias for `/ready` (same response shape)
 
 > The first run will pull the `mysql:8.4` image — give it a minute.
 
@@ -207,6 +228,8 @@ npm install
 npm run setup   # detects no docker → runs native bootstrap
 npm run dev
 ```
+
+`npm run dev` runs `npm run check-env` between `setup` and the `serve` step — it diffs `.env` against `.env.example` and exits early with a friendly message if any required key is missing or empty, so you never get a confusing `undefined.foo` failure on the first request.
 
 ### Truly by-hand (no script)
 
@@ -260,17 +283,22 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | **Quality gates**              |                                                                                                                                               |
 | `npm run lint`                 | Lint every project                                                                                                                            |
 | `npm run lint:fix`             | Lint + autofix                                                                                                                                |
+| `npm run lint:md`              | Lint user-facing Markdown (README / CHANGELOG / docs/) — config in `.markdownlint-cli2.jsonc`                                                 |
+| `npm run lint:migrations`      | Lint `db/migrations/*.sql` for destructive-DDL footguns; runs in pre-commit + CI                                                              |
 | `npm run format`               | Prettier write across the whole repo                                                                                                          |
 | `npm run format:check`         | Prettier check (CI-friendly, non-mutating)                                                                                                    |
 | `npm run typecheck`            | `tsc --noEmit` across every project                                                                                                           |
 | `npm run check`                | `format:check` + `lint` + `typecheck` + `test` in sequence — run this before every PR                                                         |
 | `npm run check:affected`       | Same as `check`, but only on Nx-affected projects                                                                                             |
+| `npm run preflight`            | `check` + `e2e` + Storybook build — full local CI dry-run, catches what `check` skips                                                         |
+| `npm run check-env`            | Verifies `.env` has every key declared (uncommented) in `.env.example`; fails fast if not                                                     |
 | **Unit tests**                 |                                                                                                                                               |
 | `npm test`                     | All unit tests (all projects)                                                                                                                 |
 | `npm run test:fe`              | Frontend tests (Vitest)                                                                                                                       |
 | `npm run test:be`              | Backend tests (Jest)                                                                                                                          |
 | `npm run test:types`           | `libs/types` tests                                                                                                                            |
 | `npm run test:utils`           | `libs/utils` tests                                                                                                                            |
+| `npm run test:storybook`       | Smoke-test every story (renders without errors). Requires `npm run storybook` running in another terminal at `:6006`                          |
 | **E2E tests**                  |                                                                                                                                               |
 | `npm run e2e`                  | All e2e suites (`frontend-e2e` + `backend-e2e`)                                                                                               |
 | `npm run e2e:fe`               | Frontend e2e only (Playwright)                                                                                                                |
@@ -278,6 +306,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | **Database**                   |                                                                                                                                               |
 | `npm run migrate`              | Apply pending database migrations from `db/migrations/`                                                                                       |
 | `npm run migrate:status`       | Show which migrations are applied vs pending                                                                                                  |
+| `npm run db:reset`             | Drop every table, re-apply all migrations, load `db/seed.sql`. Refuses if `NODE_ENV=production`                                               |
 | **Build**                      |                                                                                                                                               |
 | `npm run build`                | Runs `check` first, then builds every project (outputs to `dist/`)                                                                            |
 | `npm run clean`                | Remove `dist/`, `.nx/cache`, `storybook-static`, and `coverage` build artifacts                                                               |
@@ -294,6 +323,7 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 - **Unit tests** live next to source as `*.spec.ts(x)` — Vitest in the frontend / `libs/types`, Jest in the backend / `libs/utils`.
 - **E2E tests** live in `apps/frontend-e2e` (Playwright) and `apps/backend-e2e` (Jest integration tests).
 - **Storybook stories** are mandatory for every new frontend component (`*.stories.tsx`, co-located). The `@storybook/addon-a11y` addon runs axe-core accessibility audits in the Storybook panel; core essentials (controls, actions, viewport, docs) are built into Storybook 10.
+- **Storybook smoke tests** run via `@storybook/test-runner` — every `*.stories.tsx` is opened in headless Chromium and asserted to render without errors. Run locally with `npm run storybook` in one terminal and `npm run test:storybook` in another, or let the `storybook test` CI job catch regressions on PRs (gated on the same `frontend` paths-filter as the build).
 
 ```bash
 npm test             # all unit tests
@@ -354,6 +384,7 @@ Lists users with pagination.
     - `limit` — integer 1–100, default `20`
     - `offset` — integer ≥ 0, default `0`
 - **Response (200):**
+
     ```json
     {
         "data": {
@@ -369,6 +400,7 @@ Lists users with pagination.
         }
     }
     ```
+
 - **Response (400):** `{ "error": "...", "issues": [{ "path": "limit", "message": "Number must be less than or equal to 100" }] }`
 
 ### Cross-cutting behaviour
@@ -393,13 +425,15 @@ Runs on every pull request (and on push to `main` / `develop` as the non-affecte
 
 - `detect` — path-filter job that outputs `code` (any app/lib/config change) and `frontend` (frontend-specific change). Gates the heavy jobs (`check`, `storybook-build`, `e2e`, `commitlint`) — docs-only PRs pay only ~1 min (detect + attribution-guard + ci-pass) while branch protection stays unblocked. `attribution-guard` intentionally isn't gated by `code`, since AI commits can touch docs/workflows/configs and still owe a JSONL entry
 - `check` — `format:check` + `nx affected -t lint typecheck test` + `nx affected -t build`, wrapped in an Nx Cloud CI run for distributed cache + self-healing. Uploads `dist/` as an artifact. Quality gates and build are merged into one job to avoid a redundant checkout + `npm ci` on a second runner
-- `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter)
+- `storybook-build` — ensures every story still compiles (skipped on backend-only changes via the `frontend` path filter). Uploads the static build as a 1-day artifact so the next job can reuse it.
+- `storybook-test` — `@storybook/test-runner` opens every story in headless Chromium and asserts it renders without errors (catches stale prop renames, deleted exports, throw-on-mount regressions that the build alone wouldn't fail on). Downloads the static build from `storybook-build` instead of rebuilding — saves ~1 min per PR.
+- `markdown-lint` — `markdownlint-cli2` over user-facing docs. Gated on a `markdown` paths-filter so PRs without MD changes skip it.
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
 - `attribution-guard` — runs on every non-draft PR and enforces two rules. (1) If `apps/` or `libs/` changed, a `CHANGELOG.md` entry is required. (2) If any commit in the PR carries an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex, …), the PR must also contain at least one net-new line in `.ai-attribution.jsonl`. Human-only PRs don't need a JSONL append. Automation bots (dependabot, renovate, github-actions) are explicitly excluded from the trailer match
 - `ci-pass` — aggregator status check. Point branch protection at this single job instead of listing every job by name. It passes when every upstream job succeeded or was intentionally skipped (e.g. `storybook-build` on a backend-only PR), and fails if any upstream job failed or was cancelled.
 
-`storybook-build` and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
+`storybook-build`, `storybook-test`, and `e2e` only run on `pull_request` events — on `push` to `main` / `develop` they're skipped, because the PR that just squash-merged already ran them. `check` + `build` + CodeQL still run on push as belt-and-braces. Pushes whose only diff is `.ai-attribution.jsonl` skip CI entirely via `paths-ignore`; bundled two-commit pushes (work + attribution) still trigger CI because the work commit touches non-ignored files.
 
 ### Weekly (`.github/workflows/ci-scheduled.yml`)
 
@@ -415,6 +449,10 @@ Runs every Monday at 05:23 UTC, also `workflow_dispatch`-able on demand. Designe
 ### SAST (`.github/workflows/codeql.yml`)
 
 GitHub CodeQL on JS/TS. Runs on every PR and weekly via cron — **not** on push-to-main/develop, because in a PR-based workflow the PR run covers the same code and a post-merge re-run would just double-count minutes. `workflow_dispatch` is enabled so you can re-run manually without pushing an empty commit.
+
+### Supply-chain (`.github/workflows/scorecard.yml`)
+
+OSSF Scorecard runs on push-to-main, weekly via cron (off-cycle from CodeQL), on `branch_protection_rule` events (regression catcher), and on `workflow_dispatch`. SARIF reports land in the GitHub Security tab; the public score is hosted at `scorecard.dev` and renders the badge at the top of this README. Complements CodeQL — CodeQL is SAST on the source, Scorecard is configuration / process scanning on the repo itself (catches branch-protection drift, unpinned action SHAs, missing signed releases, dangerous-workflow patterns).
 
 ### GitHub Pages (`.github/workflows/pages.yml`)
 
@@ -490,7 +528,15 @@ npm run migrate:status   # show applied vs pending
 
 ### Resetting the local database
 
-Destroys all data:
+The fastest path — drops every table, re-applies all migrations, then loads `db/seed.sql` for a predictable dev dataset. Works against both the Docker and native MySQL setups (it just runs SQL against the configured `DB_*`):
+
+```bash
+npm run db:reset
+```
+
+The script refuses to run when `NODE_ENV=production`. It's intentionally paranoid — destroying data on the wrong machine is worse than a false negative on a misconfigured laptop.
+
+If you want to wipe at the OS / container level instead (e.g. you suspect MySQL itself is in a bad state, not just the schema):
 
 ```bash
 # Docker path — wipes the container volume:

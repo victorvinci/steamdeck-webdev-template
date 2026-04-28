@@ -1,0 +1,115 @@
+// Markdownlint config — used by `npm run lint:md` and the `markdown-lint`
+// CI job. Tuned for this repo's existing prose style and Prettier settings;
+// rules that fight Prettier's wrap behaviour or call out idiomatic Markdown
+// (tables, callouts, code blocks) are intentionally relaxed.
+//
+// Reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+{
+    "config": {
+        "default": true,
+
+        // MD013 (line-length) — disabled. Prettier governs Markdown wrapping
+        // in this repo (default `proseWrap: preserve`), so authors are free
+        // to write long single-line paragraphs that GitHub renders just fine.
+        // markdownlint's 80-col default would fight every paragraph in
+        // CHANGELOG / README / docs. Line wrapping is a Prettier concern;
+        // markdownlint should not duplicate it.
+        "MD013": false,
+
+        // MD007 (ul-indent) — Prettier indents nested list items by 4 spaces
+        // in this repo's `.prettierrc` (tabWidth: 4). markdownlint's default
+        // of 2 fights that. Match Prettier so the two tools agree.
+        "MD007": { "indent": 4 },
+
+        // MD024 (no-duplicate-heading) — disabled. Keep-a-Changelog format
+        // repeats `### Added` / `### Changed` / `### Fixed` per version,
+        // and authors sometimes interleave a second `### Fixed` block within
+        // the same version when fixes land in two different code-paths.
+        // `siblings_only: true` doesn't cover that case (the duplicates ARE
+        // siblings under the same `## [version]` parent), so the rule fights
+        // legitimate Keep-a-Changelog usage. The cost of disabling: nothing
+        // protects against actual accidental dup headings, but those are
+        // visually obvious in review and not worth the false-positive flood.
+        "MD024": false,
+
+        // MD028 (no-blanks-blockquote) — README uses multi-paragraph
+        // blockquotes for structured callouts ("> **Heads-up:** …" then
+        // a blank line then more `>` content). The blank line is part of
+        // the visual structure and renders correctly on GitHub.
+        "MD028": false,
+
+        // MD033 (no-inline-html) — README uses <details>, <sub>, <br> for
+        // collapsible sections + table tweaks. Allow the safe-by-default set;
+        // ban anything that could carry script.
+        "MD033": {
+            "allowed_elements": [
+                "details",
+                "summary",
+                "br",
+                "sub",
+                "sup",
+                "kbd",
+                "div",
+                "img",
+                "a",
+            ],
+        },
+
+        // MD036 (no-emphasis-as-heading) — README uses **bolded callouts**
+        // inside list items / blockquotes (e.g. "> **Heads-up:** …"). They
+        // aren't headings and shouldn't be promoted to one.
+        "MD036": false,
+
+        // MD041 (first-line-h1) — true by default; we keep it on since every
+        // doc in this repo does start with an `# H1`. Override per-file with
+        // a `<!-- markdownlint-disable-next-line MD041 -->` if a stub doc
+        // genuinely needs to start otherwise.
+        "MD041": true,
+
+        // MD040 (fenced-code-language) — keep on; nudges contributors to
+        // tag every fenced block (```bash / ```ts / ```sql / ```text) so
+        // syntax highlighting works on GitHub + in docs builds.
+        "MD040": true,
+    },
+    "ignores": [
+        "node_modules",
+        ".nx",
+        "dist",
+        "build",
+        "coverage",
+        "storybook-static",
+
+        // Agent-tooling artifacts: SKILL.md / agent.md / prompt.md files
+        // that sit under .claude / .opencode / .github/agents / .github/prompts.
+        // They're consumed by their respective tools (Claude Code, OpenCode,
+        // GitHub Copilot agents) and have their own structural conventions
+        // (YAML frontmatter, no leading H1, etc.) that markdownlint's
+        // user-doc-oriented defaults flag spuriously.
+        ".claude/**",
+        ".opencode/**",
+        ".agents/**",
+        ".github/agents/**",
+        ".github/prompts/**",
+        ".github/skills/**",
+
+        // PR / issue templates: rendered inside GitHub's compose UI where the
+        // PR title is the implicit H1 and the body starts at `## Summary`.
+        // MD041 (first-line-h1) flags this spuriously since the file itself
+        // has no `# H1`.
+        ".github/pull_request_template.md",
+        ".github/PULL_REQUEST_TEMPLATE/**",
+
+        // AGENTS.md is half hand-authored, half Nx-generated (the `<!-- nx
+        // configuration start -->` block gets overwritten on regeneration).
+        // The generated block adds a second top-level heading that we can't
+        // remove without it coming back. The hand-authored preamble that
+        // wraps it is short enough to review by eye.
+        "AGENTS.md",
+
+        // Steam Deck host helpers ship their own changelog and READMEs and
+        // version separately from the web template — see README.md preamble
+        // for the rationale. Out of scope for this repo's lint pass.
+        "scripts/steamdeck/**",
+    ],
+    "globs": ["**/*.md"],
+}

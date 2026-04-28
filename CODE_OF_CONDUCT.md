@@ -8,7 +8,7 @@ The Covenant applies to anyone participating in this project: maintainers, contr
 
 ## Reporting
 
-Report conduct concerns privately to the maintainer at **victorvinci@protonmail.com**. Reports are handled confidentially; the maintainer will acknowledge within 72 hours.
+Report conduct concerns privately to the maintainer at **<victorvinci@protonmail.com>**. Reports are handled confidentially; the maintainer will acknowledge within 72 hours.
 
 If the concern is a security vulnerability rather than a conduct issue, use the flow in [`SECURITY.md`](./SECURITY.md) instead.
 

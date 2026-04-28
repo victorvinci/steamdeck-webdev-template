@@ -44,10 +44,15 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         # `contents: write` is required to create the release and upload
-        # assets. No other scopes needed — we don't push, comment, or
-        # touch issues from this workflow.
+        # assets. `id-token: write` + `attestations: write` are required by
+        # actions/attest-build-provenance to mint an OIDC token and write
+        # the resulting attestation to the repo's attestation store. No
+        # other scopes needed — we don't push, comment, or touch issues
+        # from this workflow.
         permissions:
             contents: write
+            id-token: write
+            attestations: write
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
@@ -113,6 +118,29 @@ jobs:
                   # alerts.
                   upload-artifact: false
                   upload-release-assets: false
+
+            # Build-provenance attestation for the SBOM.
+            #
+            # Generates a SLSA v1.0 provenance statement, signs it with a
+            # Sigstore-issued certificate keyed to this workflow's OIDC
+            # identity, and stores it in GitHub's attestation log so any
+            # downstream consumer can prove the SBOM was produced by THIS
+            # repo's release.yml on a tag pushed to main — not swapped in
+            # by a compromised mirror or a tampered fork.
+            #
+            # Verify with:
+            #   gh attestation verify sbom.cdx.json \
+            #       --repo ${{ github.repository }}
+            #
+            # The source-tree itself is already covered by the signed git
+            # tag plus branch-protection on main; the SBOM is the only
+            # build artifact we ship that downstream consumers might
+            # cache or mirror, so it's the artifact that actually needs
+            # provenance.
+            - name: Attest SBOM provenance
+              uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+              with:
+                  subject-path: sbom.cdx.json
 
             # GitHub's "Immutable releases" repo setting locks a release
             # the moment it's published — no asset uploads after that

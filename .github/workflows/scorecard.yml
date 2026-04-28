@@ -1,0 +1,73 @@
+# OSSF Scorecard — supply-chain security posture analysis.
+#
+# Runs the OpenSSF Scorecard checks against this repo and uploads the
+# SARIF report to the GitHub Security tab. Catches branch-protection
+# regressions on `main`, missing signed releases, unpinned action
+# dependencies, dangerous workflow patterns, and similar drift that
+# CodeQL (codeql.yml) doesn't cover — CodeQL is SAST on the source,
+# Scorecard is configuration / process scanning on the repo itself.
+#
+# Free for public repos. Results visible in:
+#   - GitHub Security tab → Code scanning alerts (severity ranked)
+#   - https://scorecard.dev/viewer/?uri=github.com/<owner>/<repo>
+#     once `publish_results: true` has run at least once on main.
+
+name: Scorecard supply-chain security
+
+on:
+    # Re-run when branch-protection rules change so we catch regressions
+    # the moment they happen, not at the next weekly cron tick.
+    branch_protection_rule:
+    schedule:
+        - cron: '20 7 * * 1' # weekly, off-cycle from codeql.yml (Mon 06:17)
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+# Default to read-only at the workflow level; the analysis job opts back in
+# to the writes it needs (security-events for SARIF upload, id-token for
+# OIDC-signed publish to scorecard.dev).
+permissions: read-all
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    analysis:
+        name: Scorecard analysis
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write # upload SARIF to the Security tab
+            id-token: write # OIDC token to publish results to scorecard.dev
+            contents: read
+            actions: read
+
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  # Scorecard's own guidance: never persist credentials when
+                  # running supply-chain security tooling.
+                  persist-credentials: false
+
+            - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+              with:
+                  results_file: results.sarif
+                  results_format: sarif
+                  # Publish the score to the public scorecard.dev API. Required
+                  # for the README badge to render and for downstream consumers
+                  # to check the score. Public repo only — no private data leaks.
+                  publish_results: true
+
+            # Keep the raw SARIF as an artifact for 5 days for triage when a
+            # specific check regresses; the Security tab keeps the alerts
+            # themselves indefinitely.
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: SARIF file
+                  path: results.sarif
+                  retention-days: 5
+
+            - uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+              with:
+                  sarif_file: results.sarif

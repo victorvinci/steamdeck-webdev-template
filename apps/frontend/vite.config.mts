@@ -44,6 +44,39 @@ export default defineConfig(() => ({
         coverage: {
             reportsDirectory: '../../coverage/apps/frontend',
             provider: 'v8' as const,
+            // Without `include`, vitest only reports coverage for files
+            // actually loaded by tests — which makes "100% coverage" a
+            // trivial pass even when most files have no tests. Listing
+            // src/** explicitly makes uncovered files show as 0% so the
+            // thresholds below can fail on real regressions.
+            //
+            // Excludes:
+            //   - main.tsx           Vite entry, exercised via e2e
+            //   - routeTree.gen.ts   TanStack Router generated file
+            //   - routes/**          thin route components, exercised via e2e
+            //   - *.{test,spec,stories}.{ts,tsx}   tests + storybook stories
+            include: ['src/**/*.{ts,tsx}'],
+            exclude: [
+                'src/main.tsx',
+                'src/routeTree.gen.ts',
+                'src/routes/**',
+                'src/**/*.{test,spec,stories}.{ts,tsx}',
+            ],
+            // Calibrated 2026-04-27 against:
+            //   statements 29.62  branches 33.33  lines 30.76  functions 40
+            // The frontend is intentionally thin on unit tests right now —
+            // the worked /users domain is the only component with a spec,
+            // and most of the surface area is exercised via Playwright e2e
+            // (apps/frontend-e2e) instead. Floors are deliberately low to
+            // act as a regression net, not a goalpost; bump in dedicated
+            // PRs once new specs land. See apps/backend/jest.config.cts
+            // for the same rationale.
+            thresholds: {
+                statements: 25,
+                branches: 30,
+                lines: 25,
+                functions: 35,
+            },
         },
     },
 }));
