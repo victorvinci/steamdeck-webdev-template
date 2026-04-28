@@ -54,6 +54,18 @@ export default defineConfig(() => ({
         coverage: {
             reportsDirectory: '../../coverage/libs/utils',
             provider: 'v8' as const,
+            include: ['src/**/*.ts'],
+            exclude: ['src/**/*.{test,spec}.ts', 'src/index.ts'],
+            // Calibrated 2026-04-27 against:
+            //   statements 100  branches 92.3  lines 100  functions 100
+            // See apps/backend/jest.config.cts for the bump-in-its-own-PR
+            // rationale.
+            thresholds: {
+                statements: 90,
+                branches: 85,
+                lines: 90,
+                functions: 90,
+            },
         },
     },
 }));

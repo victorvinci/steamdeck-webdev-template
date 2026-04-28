@@ -1,0 +1,72 @@
+// Dev Container / GitHub Codespaces config.
+//
+// Click "Open in Codespaces" (or "Reopen in Container" in VS Code with the
+// Dev Containers extension) and you land at a working `npm run dev` in
+// ~90 seconds. No host docker, no host MySQL, no `scripts/dev-setup.sh`.
+//
+// Compose layering:
+//   - ../docker-compose.yml ........... base mysql service
+//   - docker-compose.devcontainer.yml . adds `app` service + dev creds
+//
+// The dev creds are dev-container-only (no host .env, never reach prod).
+// Host ports are forwarded by VS Code/Codespaces — no `ports:` declarations
+// needed in the compose file.
+{
+    "name": "steamdeck-webdev-template",
+
+    "dockerComposeFile": ["../docker-compose.yml", "docker-compose.devcontainer.yml"],
+    "service": "app",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+    // 4200 = Vite dev server, 3000 = Express, 6006 = Storybook.
+    // 3306 (MySQL) is intentionally NOT forwarded — DB stays internal.
+    "forwardPorts": [4200, 3000, 6006],
+    "portsAttributes": {
+        "4200": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
+        "3000": { "label": "Backend (Express)", "onAutoForward": "notify" },
+        "6006": { "label": "Storybook", "onAutoForward": "silent" }
+    },
+
+    // App env mirrors .env.example with two changes:
+    //   - DB_HOST=mysql          → talks to the compose service, not the host
+    //   - DB_*PASSWORD=dev_only…  → matches the override in the compose file
+    // Everything else stays at the .env.example defaults so behaviour matches
+    // a plain-host dev session.
+    "containerEnv": {
+        "NODE_ENV": "development",
+        "PORT": "3000",
+        "HOST": "localhost",
+        "DB_HOST": "mysql",
+        "DB_PORT": "3306",
+        "DB_NAME": "steamdeck_dev",
+        "DB_USER": "steamdeck",
+        "DB_PASSWORD": "dev_only_password",
+        "DB_ROOT_PASSWORD": "dev_only_root_password",
+        "DB_CONNECTION_LIMIT": "10",
+        "FRONTEND_URL": "http://localhost:4200",
+        "VITE_API_URL": "http://localhost:3000"
+    },
+
+    // npm ci + apply migrations against the freshly-booted mysql.
+    // depends_on/condition: service_healthy in the compose overlay
+    // makes sure mysql is reachable before this runs.
+    "postCreateCommand": "npm ci && npm run migrate",
+
+    "customizations": {
+        "vscode": {
+            // Mirrors .vscode/extensions.json. Keep them in sync — VS Code
+            // reads .vscode/extensions.json on local opens; Codespaces
+            // reads this list on cloud opens.
+            "extensions": [
+                "esbenp.prettier-vscode",
+                "dbaeumer.vscode-eslint",
+                "nrwl.angular-console"
+            ]
+        }
+    },
+
+    // The Microsoft devcontainer base image ships a `node` user with
+    // sudo + a writable home. Match the conventional username so any
+    // documentation snippets that mention `~` work without surprises.
+    "remoteUser": "node"
+}

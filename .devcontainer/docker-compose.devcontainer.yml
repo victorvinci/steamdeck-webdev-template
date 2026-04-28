@@ -1,0 +1,59 @@
+# Devcontainer / Codespaces overlay for the root docker-compose.yml.
+#
+# Adds an `app` service that the devcontainer attaches to, and pins
+# concrete dev-only credentials for `mysql` so compose doesn't have to
+# substitute from a host .env (which doesn't exist in Codespaces).
+#
+# Used together via .devcontainer/devcontainer.json:
+#   "dockerComposeFile": [
+#       "../docker-compose.yml",            # base mysql service
+#       "docker-compose.devcontainer.yml"   # this overlay
+#   ]
+#
+# Compose merges keys deep — this file's values win for the listed
+# fields, the rest comes from the base file.
+
+services:
+    mysql:
+        # Override the ${VAR} substitution from the base compose so the DB
+        # boots cleanly inside Codespaces without a host .env. These
+        # credentials are devcontainer-only and never reach prod — they
+        # exist only inside the ephemeral compose network.
+        environment:
+            MYSQL_DATABASE: steamdeck_dev
+            MYSQL_USER: steamdeck
+            MYSQL_PASSWORD: dev_only_password
+            MYSQL_ROOT_PASSWORD: dev_only_root_password
+        # The base compose's healthcheck uses ${DB_USER}/${DB_PASSWORD},
+        # which compose substitutes from the *host shell* at compose-up
+        # time — not from the service's `environment:` block. In
+        # Codespaces there is no host .env, so they would substitute
+        # empty and the healthcheck would error. Replace the whole `test`
+        # array with concrete credentials matching the overrides above.
+        # `interval`/`timeout`/`retries` from the base file are inherited
+        # via compose's deep-merge of map keys.
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'mysqladmin',
+                    'ping',
+                    '-h',
+                    'localhost',
+                    '-u',
+                    'steamdeck',
+                    '-pdev_only_password',
+                ]
+
+    app:
+        # Microsoft's official Node 24 devcontainer image — ships git,
+        # gh, sudo, a `node` user with a writable $HOME, and the usual
+        # build deps. Pinning to `1-24` follows the channel convention:
+        # `1` = devcontainer feature schema major, `24` = Node major.
+        image: mcr.microsoft.com/devcontainers/javascript-node:1-24
+        # The repo is bind-mounted via the devcontainer machinery
+        # (workspaceFolder in devcontainer.json), so no `volumes:` here.
+        command: sleep infinity
+        depends_on:
+            mysql:
+                condition: service_healthy

@@ -12,7 +12,15 @@ Expect the first walk-through to take 30-60 minutes. Subsequent forks should be 
 
 Click **Use this template** on GitHub (not `Fork`). A template-derived repo is a fresh project with no upstream link, which is what you want. `Fork` creates a real fork that tracks upstream and inherits issues/PRs/stars, which you don't want for a new project.
 
-Clone it locally:
+Then pick one of the dev paths below.
+
+### Option A — Codespaces / Dev Container (fastest)
+
+Open the new repo in **GitHub Codespaces** (`Code → Codespaces → Create codespace`) or, locally with VS Code's [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), pick **Reopen in Container**. Both paths read [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json), build a Node 24 + MySQL 8.4 stack, run `npm ci && npm run migrate` for you, and forward ports 4200 / 3000 / 6006 to your browser. From cold start to a working `npm run dev` is ~90 seconds.
+
+The devcontainer credentials live in [`.devcontainer/docker-compose.devcontainer.yml`](../.devcontainer/docker-compose.devcontainer.yml) and are dev-container-only — they never reach prod. You can skip the host MySQL bootstrap (`scripts/dev-setup.sh` / `dev-setup-native.sh`) entirely — Codespaces provisions and migrates the DB for you.
+
+### Option B — Local clone (traditional)
 
 ```bash
 git clone git@github.com:<your-handle>/<your-repo>.git
@@ -20,7 +28,7 @@ cd <your-repo>
 npm install
 ```
 
-The `npm install` step is needed so `npm run check` (called at the end of the rename script) has its dependencies.
+The `npm install` step is needed so `npm run check` (called at the end of the rename script) has its dependencies. You'll bootstrap MySQL yourself in Step 6 — either via Docker (`npm run setup`) or via the native fallback (`scripts/dev-setup-native.sh`) if Docker isn't available on the host.
 
 ---
 

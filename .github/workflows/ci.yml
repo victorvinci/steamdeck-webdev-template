@@ -105,6 +105,8 @@ jobs:
             code: ${{ steps.filter.outputs.code }}
             frontend: ${{ steps.filter.outputs.frontend }}
             renovate: ${{ steps.filter.outputs.renovate }}
+            migrations: ${{ steps.filter.outputs.migrations }}
+            markdown: ${{ steps.filter.outputs.markdown }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - id: filter
@@ -132,6 +134,12 @@ jobs:
                         - '.nvmrc'
                       renovate:
                         - 'renovate.json'
+                      migrations:
+                        - 'db/migrations/**'
+                        - 'scripts/lint-migrations.sh'
+                      markdown:
+                        - '**/*.md'
+                        - '.markdownlint-cli2.jsonc'
 
     # ---------- quality ----------
 
@@ -185,6 +193,102 @@ jobs:
                   path: dist
                   if-no-files-found: ignore
                   retention-days: 7
+
+    # PR-time gzipped bundle-size diff vs. the PR base. Posts a sticky
+    # comment via preactjs/compressed-size-action — head builds, base
+    # builds, both totals + per-file diffs go in the comment, sorted by
+    # change size. ci-scheduled.yml has a weekly bundle-size job that
+    # tracks long-term trend against a stored baseline; this one is for
+    # the dev who shipped the regression today and needs feedback before
+    # merge, not 6 days later.
+    #
+    # Gated on `frontend` so backend-only and docs-only PRs skip it. Only
+    # runs on pull_request (the action requires both head and base SHAs).
+    # `strip-hash` collapses Vite's content-hash suffix (`index-BbeTQOkI.js`
+    # → `index-*.js`) so per-file rows match across builds and
+    # `collapse-unchanged: true` can hide them — without it every PR
+    # would show every chunk as added/removed.
+    bundle-size:
+        name: bundle size
+        needs: detect
+        if: >-
+            needs.detect.outputs.frontend == 'true' &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        permissions:
+            contents: read
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            # The compressed-size-action runs on Node 20 (its own runtime),
+            # but the `npm ci` it spawns inherits whichever Node is on PATH.
+            # Without this setup-node step it'd be Node 20 and `npm ci`
+            # would fail with EBADENGINE because `engines.node` in
+            # package.json pins >=24. Pulling node-version-file from .nvmrc
+            # keeps this in lock-step with the rest of CI.
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+            - uses: preactjs/compressed-size-action@66325aad6443cb7cf89c4bfcd414aea2367cda94 # v2.9.1
+              env:
+                  # Vite inlines VITE_* at build time. Without this, the
+                  # frontend Zod env check throws on first script eval and
+                  # the build fails. Value is irrelevant for size
+                  # measurement — it just has to satisfy z.string().url().
+                  # Mirrors the convention in ci-scheduled.yml's bundle job.
+                  VITE_API_URL: http://localhost:3000
+              with:
+                  install-script: 'npm ci'
+                  build-script: 'build:fe'
+                  pattern: 'dist/apps/frontend/**/*.{js,css}'
+                  # Vite default hash is 8 base64url chars; \w covers the
+                  # common case (alphanumeric + underscore). Hyphens in
+                  # hashes are rare in practice for 8-char digests.
+                  strip-hash: '-(\w{8,})\.(js|css)$'
+                  compression: 'gzip'
+
+    # Migration safety lint — guards db/migrations/ against destructive DDL
+    # patterns (DROP TABLE without IF EXISTS, DROP DATABASE, etc.) and
+    # filename / numbering hygiene. Gated on `migrations` so PRs that don't
+    # touch db/migrations/ skip the job entirely (~10s when it runs, $0 when
+    # it doesn't). Override syntax in the .sql files themselves —
+    # see scripts/lint-migrations.sh header for the rule list.
+    migrations-lint:
+        name: migration lint
+        needs: detect
+        if: >-
+            needs.detect.outputs.migrations == 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - run: bash scripts/lint-migrations.sh
+
+    # Markdown lint — markdownlint-cli2 over user-facing docs (README,
+    # CHANGELOG, docs/, root MD files). Config + ignores live in
+    # .markdownlint-cli2.jsonc; agent-tooling stubs (.claude / .opencode /
+    # .agents / .github skills + agents + prompts + PR templates) are
+    # excluded because they have non-standard structure (YAML frontmatter,
+    # no leading H1) that markdownlint's user-doc defaults flag spuriously.
+    # Gated on the `markdown` paths-filter so PRs without MD changes pay
+    # nothing. Runs needs.detect (no `check`) so it doesn't queue behind
+    # the heavy quality job — a typo in a doc is fast feedback.
+    markdown-lint:
+        name: markdown lint
+        needs: detect
+        if: >-
+            needs.detect.outputs.markdown == 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            - run: npm run lint:md
 
     commitlint:
         name: commitlint (PR title)
@@ -363,6 +467,52 @@ jobs:
                   fetch-depth: 0
             - uses: ./.github/actions/setup-node-deps
             - run: npx nx run frontend:build-storybook
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              with:
+                  name: storybook-static
+                  path: apps/frontend/storybook-static
+                  retention-days: 1
+                  if-no-files-found: error
+
+    # Storybook smoke test — every story is opened in Chromium via
+    # @storybook/test-runner and asserted to render without errors. CLAUDE.md
+    # mandates a `*.stories.tsx` per component but nothing else verifies the
+    # stories actually compile + render after a refactor; this is the gate.
+    #
+    # Runs against the static build produced by `storybook-build` (downloaded
+    # as an artifact) instead of rebuilding from scratch — saves ~1 min per PR.
+    # http-server + wait-on are pulled on-demand via `npx -y` so they're not
+    # part of `package.json`'s devDependencies (one-shot use, ~30s install
+    # cached by the runner).
+    storybook-test:
+        name: storybook test
+        needs: [storybook-build, detect]
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect.outputs.frontend == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+              with:
+                  name: storybook-static
+                  path: apps/frontend/storybook-static
+            - name: Install Playwright browsers (Chromium)
+              # test-runner ships Playwright as a dependency; it just needs the
+              # Chromium binary fetched. Other browsers aren't worth the install
+              # cost — a story that renders in Chromium will render anywhere.
+              run: npx playwright install --with-deps chromium
+            - name: Run test-storybook
+              # Pattern from Storybook's official "Run in CI" recipe:
+              #   1. Serve the static build on :6006
+              #   2. Wait for the port (with timeout) before launching tests
+              #   3. test-storybook walks every *.stories.* and renders it
+              # `concurrently -k -s first` kills the http-server when the
+              # tests finish (success or failure) so the job doesn't hang.
+              run: |
+                  npx -y concurrently -k -s first -n "SB,TEST" \
+                    "npx -y http-server apps/frontend/storybook-static -p 6006 -s" \
+                    "npx -y wait-on tcp:127.0.0.1:6006 --timeout 60000 && npm run test:storybook"
 
     # ---------- e2e ----------
 
@@ -559,12 +709,15 @@ jobs:
             - detect
             - check
             - storybook-build
+            - storybook-test
             - playwright-image
             - e2e
             - commitlint
             - attribution-guard
             - dependency-review
             - renovate-config
+            - migrations-lint
+            - markdown-lint
         runs-on: ubuntu-latest
         timeout-minutes: 2
         # No `environment:` here — a prior version gated ci-pass behind

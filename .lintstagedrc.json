@@ -1,5 +1,6 @@
 {
     "*.{ts,tsx,js,jsx}": ["eslint --fix", "prettier --write"],
     "*.{json,md,yml,yaml,css}": ["prettier --write"],
+    "db/migrations/*.sql": ["bash scripts/lint-migrations.sh"],
     "!.ai-attribution.jsonl": []
 }

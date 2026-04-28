@@ -54,6 +54,17 @@ export default defineConfig(() => ({
         coverage: {
             reportsDirectory: '../../coverage/libs/types',
             provider: 'v8' as const,
+            include: ['src/**/*.ts'],
+            exclude: ['src/**/*.{test,spec}.ts', 'src/index.ts'],
+            // Calibrated 2026-04-27 — bump in dedicated PRs as new
+            // schemas + tests land. See apps/backend/jest.config.cts
+            // for the rationale.
+            thresholds: {
+                statements: 90,
+                branches: 90,
+                lines: 90,
+                functions: 90,
+            },
         },
     },
 }));
