@@ -106,6 +106,7 @@ jobs:
             frontend: ${{ steps.filter.outputs.frontend }}
             renovate: ${{ steps.filter.outputs.renovate }}
             migrations: ${{ steps.filter.outputs.migrations }}
+            markdown: ${{ steps.filter.outputs.markdown }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - id: filter
@@ -136,6 +137,9 @@ jobs:
                       migrations:
                         - 'db/migrations/**'
                         - 'scripts/lint-migrations.sh'
+                      markdown:
+                        - '**/*.md'
+                        - '.markdownlint-cli2.jsonc'
 
     # ---------- quality ----------
 
@@ -253,6 +257,28 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - run: bash scripts/lint-migrations.sh
+
+    # Markdown lint — markdownlint-cli2 over user-facing docs (README,
+    # CHANGELOG, docs/, root MD files). Config + ignores live in
+    # .markdownlint-cli2.jsonc; agent-tooling stubs (.claude / .opencode /
+    # .agents / .github skills + agents + prompts + PR templates) are
+    # excluded because they have non-standard structure (YAML frontmatter,
+    # no leading H1) that markdownlint's user-doc defaults flag spuriously.
+    # Gated on the `markdown` paths-filter so PRs without MD changes pay
+    # nothing. Runs needs.detect (no `check`) so it doesn't queue behind
+    # the heavy quality job — a typo in a doc is fast feedback.
+    markdown-lint:
+        name: markdown lint
+        needs: detect
+        if: >-
+            needs.detect.outputs.markdown == 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+        runs-on: ubuntu-latest
+        timeout-minutes: 3
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            - run: npm run lint:md
 
     commitlint:
         name: commitlint (PR title)
@@ -634,6 +660,7 @@ jobs:
             - dependency-review
             - renovate-config
             - migrations-lint
+            - markdown-lint
         runs-on: ubuntu-latest
         timeout-minutes: 2
         # No `environment:` here — a prior version gated ci-pass behind

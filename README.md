@@ -38,6 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - [Daily Development](#daily-development)
 - [Testing](#testing)
 - [API Surface](#api-surface)
+- [CI / CD](#ci--cd)
 - [Database](#database)
 - [Environment Variables](#environment-variables)
 - [Production Deployment](#production-deployment)
@@ -100,7 +101,7 @@ The boundary is: **patterns and infrastructure that every web app needs** (typed
 
 ## Project Structure
 
-```
+```text
 steamdeck-webdev-template/
 ├── apps/
 │   ├── frontend/               # React + Vite + TanStack Router
@@ -129,14 +130,24 @@ steamdeck-webdev-template/
 ├── scripts/
 │   ├── dev-setup.sh            # Idempotent dev bootstrap (auto-detects docker vs native mysqld)
 │   ├── dev-setup-native.sh     # Native MySQL fallback used when docker is unavailable
-│   └── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+│   ├── migrate.ts              # Lightweight DB migration runner (reads db/migrations/)
+│   ├── check-env.ts            # Diffs `.env` against `.env.example`; runs ahead of `npm run dev`
+│   ├── lint-migrations.sh      # Pre-commit + CI safety lint for db/migrations/*.sql
+│   ├── extract-changelog-section.sh  # Pulls a single version's notes out of CHANGELOG.md
+│   ├── rename-template.sh      # Renames the template for a fresh fork (project, npm scope, owner)
+│   ├── scan-template-residuals.sh    # Self-test that the rename script left no template strings behind
+│   └── steamdeck/              # Steam Deck host helpers (separately versioned, not part of the build)
+├── .devcontainer/              # Dev Containers / Codespaces config (Open in Codespaces → ready in ~90s)
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # Bug report and feature request issue forms
 │   ├── pull_request_template.md
+│   ├── PULL_REQUEST_TEMPLATE/  # Specialized templates (release / hotfix / hotfix-sync / bump)
 │   ├── actions/                # Reusable composite actions (setup-node-deps, resolve-nx-base)
+│   ├── docker/                 # Pre-baked Playwright + mysql-client image used by the e2e job
 │   └── workflows/              # CI (ci.yml), scheduled checks (ci-scheduled.yml),
-│                               #   CodeQL SAST (codeql.yml), auto-draft PRs (force-draft.yml),
-│                               #   GitHub Pages deploy (pages.yml)
+│                               #   CodeQL SAST (codeql.yml), OSSF Scorecard (scorecard.yml),
+│                               #   auto-draft PRs (force-draft.yml), GitHub Pages (pages.yml),
+│                               #   release pipeline (release.yml), PR-size labeler (pr-size.yml)
 ├── docker-compose.yml          # Local MySQL service
 ├── nx.json                     # Nx workspace config (plugins, namedInputs, targetDefaults)
 ├── tsconfig.base.json          # Root TypeScript config (path aliases: @mcb/types, @mcb/utils)
@@ -144,6 +155,8 @@ steamdeck-webdev-template/
 ├── renovate.json               # Renovate dependency automation (grouped by ecosystem)
 ├── lighthouserc.json           # Lighthouse CI assertions (weekly scheduled run)
 ├── commitlint.config.js        # Conventional Commits enforcement
+├── .markdownlint-cli2.jsonc    # Markdown lint rules (Prettier-aware; user-doc scoped via ignores)
+├── .ai-attribution.jsonl       # Append-only AI provenance log — see CLAUDE.md
 ├── .gitattributes              # LF enforcement, binary markers, generated-file collapse
 ├── .dockerignore               # Keeps Docker build context small for future Dockerfiles
 └── .env.example                # Template — copy to .env
@@ -183,12 +196,12 @@ npm run dev
 
 You should now have:
 
-- **Frontend** → http://localhost:4200
-- **Backend** → http://localhost:3000
+- **Frontend** → <http://localhost:4200>
+- **Backend** → <http://localhost:3000>
 - **Health checks:**
-    - http://localhost:3000/api/health/live — liveness, no dependencies touched (`{ data: { status: "ok" } }`)
-    - http://localhost:3000/api/health/ready — readiness, pings MySQL (`{ data: { status: "ok", db: "connected" } }`; `503` if DB is unreachable)
-    - http://localhost:3000/api/health — back-compat alias for `/ready` (same response shape)
+    - <http://localhost:3000/api/health/live> — liveness, no dependencies touched (`{ data: { status: "ok" } }`)
+    - <http://localhost:3000/api/health/ready> — readiness, pings MySQL (`{ data: { status: "ok", db: "connected" } }`; `503` if DB is unreachable)
+    - <http://localhost:3000/api/health> — back-compat alias for `/ready` (same response shape)
 
 > The first run will pull the `mysql:8.4` image — give it a minute.
 
@@ -268,6 +281,8 @@ Every command below maps to an entry in `package.json` → `scripts`. The table 
 | **Quality gates**              |                                                                                                                                               |
 | `npm run lint`                 | Lint every project                                                                                                                            |
 | `npm run lint:fix`             | Lint + autofix                                                                                                                                |
+| `npm run lint:md`              | Lint user-facing Markdown (README / CHANGELOG / docs/) — config in `.markdownlint-cli2.jsonc`                                                 |
+| `npm run lint:migrations`      | Lint `db/migrations/*.sql` for destructive-DDL footguns; runs in pre-commit + CI                                                              |
 | `npm run format`               | Prettier write across the whole repo                                                                                                          |
 | `npm run format:check`         | Prettier check (CI-friendly, non-mutating)                                                                                                    |
 | `npm run typecheck`            | `tsc --noEmit` across every project                                                                                                           |
@@ -364,6 +379,7 @@ Lists users with pagination.
     - `limit` — integer 1–100, default `20`
     - `offset` — integer ≥ 0, default `0`
 - **Response (200):**
+
     ```json
     {
         "data": {
@@ -379,6 +395,7 @@ Lists users with pagination.
         }
     }
     ```
+
 - **Response (400):** `{ "error": "...", "issues": [{ "path": "limit", "message": "Number must be less than or equal to 100" }] }`
 
 ### Cross-cutting behaviour

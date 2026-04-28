@@ -121,7 +121,7 @@ Human contributors can read the log to see exactly what an AI touched and when. 
 
 Every commit an AI agent creates **must** name the model in the commit message trailer. Use a `Co-Authored-By` line with the exact model ID:
 
-```
+```text
 Co-Authored-By: claude-opus-4-6
 ```
 

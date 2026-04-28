@@ -4,7 +4,7 @@ How we cut a version of `steamdeck-webdev-template`. The workflow encodes the br
 
 ## Branch model
 
-```
+```text
 feature/* ──▶ develop ──▶ main ──▶ tag X.Y.Z
   (squash)     (rebase)      (annotated tag)
 ```
