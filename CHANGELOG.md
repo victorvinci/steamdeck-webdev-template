@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Fixed** `bundle-size` CI job in `.github/workflows/ci.yml` was failing on PR #62 with `EBADENGINE Required: {"node":">=24.0.0"}` — `preactjs/compressed-size-action@v2.9.1` itself runs on Node 20 (its action runtime) and the `npm ci` it spawns inherited that Node version, but `package.json`'s `engines.node` is pinned `>=24`. Added an `actions/setup-node@v4` step before the action that reads `.nvmrc` and switches PATH to Node 24, so the spawned `npm ci` finds a satisfying engine. Mirrors the same setup the `setup-node-deps` composite action uses for every other CI job.
+- **Fixed** `bundle-size` CI job was still failing on PR #62 after the engine fix because the action runs `npm run build:fe` on _both_ the head and the base SHAs, and the base branch (`develop`) predates the introduction of the `build:fe` script (added in this batch — commit 9ee6032). Added `continue-on-error: true` to the action invocation so a base-side build failure doesn't fail the workflow. This is the `.todo.txt` A2 design intent ("NOT in ci-pass needs (informational; base-build failure shouldn't block merge of the PR that fixes that very failure)") made literal in YAML. After this PR merges to `develop`, every subsequent PR has `build:fe` on both sides and the action produces a real diff; `continue-on-error` becomes a no-op for those runs.
 
 ### Added
 
