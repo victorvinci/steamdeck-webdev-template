@@ -11,6 +11,7 @@ import healthRouter from './routes/health';
 import usersRouter from './routes/users';
 import { notFound } from './middleware/notFound';
 import { errorHandler } from './middleware/errorHandler';
+import { mountDocs } from './openapi/serve';
 
 const app = express();
 
@@ -82,6 +83,15 @@ app.use(
         skip: (req) => req.path.startsWith('/api/health'),
     })
 );
+
+// API documentation routes (Swagger UI + raw OpenAPI JSON). Non-prod only —
+// see openapi/serve.ts for the rationale. Mounted BEFORE healthRouter and
+// usersRouter so the /api/openapi.json route doesn't collide with the
+// catch-all 404 handler, and AFTER cors() so the browser can fetch the
+// JSON cross-origin from a Swagger UI hosted elsewhere.
+if (!isProd) {
+    mountDocs(app);
+}
 
 app.use('/api', healthRouter);
 app.use('/api', usersRouter);
