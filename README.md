@@ -472,7 +472,7 @@ GitHub CodeQL on JS/TS. Runs on every PR and weekly via cron — **not** on push
 
 ### Supply-chain (`.github/workflows/scorecard.yml`)
 
-OSSF Scorecard runs on push-to-main, weekly via cron (off-cycle from CodeQL), on `branch_protection_rule` events (regression catcher), and on `workflow_dispatch`. SARIF reports land in the GitHub Security tab; the public score is hosted at `scorecard.dev` and renders the badge at the top of this README. Complements CodeQL — CodeQL is SAST on the source, Scorecard is configuration / process scanning on the repo itself (catches branch-protection drift, unpinned action SHAs, missing signed releases, dangerous-workflow patterns).
+OSSF Scorecard runs on push-to-`develop` (the repo's default branch — Scorecard only supports the default), weekly via cron (off-cycle from CodeQL), on `branch_protection_rule` events (regression catcher), and on `workflow_dispatch`. SARIF reports land in the GitHub Security tab; the public score is hosted at `scorecard.dev` and renders the badge at the top of this README. Complements CodeQL — CodeQL is SAST on the source, Scorecard is configuration / process scanning on the repo itself (catches branch-protection drift, unpinned action SHAs, missing signed releases, dangerous-workflow patterns).
 
 ### GitHub Pages (`.github/workflows/pages.yml`)
 

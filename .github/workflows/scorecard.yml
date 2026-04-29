@@ -21,7 +21,13 @@ on:
     schedule:
         - cron: '20 7 * * 1' # weekly, off-cycle from codeql.yml (Mon 06:17)
     push:
-        branches: [main]
+        # Scorecard only analyses the repo's DEFAULT branch (it errors with
+        # "Only the default branch <name> is supported" otherwise). For this
+        # repo that's `develop`, not `main` — the release model is
+        # `develop → main` (see docs/RELEASE.md), so post-release pushes to
+        # main aren't an analysis target. Triggering on push-to-develop
+        # gives the same "after every merge" cadence we want.
+        branches: [develop]
     workflow_dispatch:
 
 # Default to read-only at the workflow level; the analysis job opts back in
