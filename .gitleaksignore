@@ -1,0 +1,17 @@
+# Gitleaks fingerprint-based ignores.
+#
+# Fingerprints have the form `<file>:<rule-id>:<line>` — they pin to the
+# exact (path, rule, line) triple of a single finding, so muting one false
+# positive doesn't silently mute a real leak in the same file.
+#
+# Get a fingerprint by running locally:
+#
+#     gitleaks git -v --redact
+#
+# and copying the `Fingerprint:` line of the finding you want to ignore.
+#
+# Prefer per-line `# gitleaks:allow` markers over fingerprints when the
+# false positive is on a specific line you control — the marker is right
+# next to the value, so a future reader sees why it's allowed without
+# having to cross-reference this file. Fingerprints are best for findings
+# in generated files / docs where adding inline markers would be awkward.

@@ -1,1 +1,40 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook for steamdeck-webdev-template.
+#
+# Two stages, both fail-fast on error:
+#
+#   1. lint-staged — Prettier / ESLint / migration lint on staged files.
+#                    Config: .lintstagedrc.json
+#
+#   2. gitleaks — secret scan over the staged diff. Catches generic
+#                  high-entropy strings + ~150 vendor token formats. Config:
+#                  .gitleaks.toml. Skipped with a hint if the binary isn't
+#                  on PATH — install gitleaks locally to enable.
+
+# ---- 1. lint-staged ----
 npx lint-staged
+LS=$?
+if [ $LS -ne 0 ]; then
+    exit $LS
+fi
+
+# ---- 2. gitleaks (optional but recommended) ----
+if command -v gitleaks > /dev/null 2>&1; then
+    gitleaks protect --staged --no-banner --redact --verbose
+    GL=$?
+    if [ $GL -ne 0 ]; then
+        echo "" >&2
+        echo "gitleaks blocked the commit. If this is a documented false positive," >&2
+        echo "either:" >&2
+        echo "  - add a per-line marker:  # gitleaks:allow" >&2
+        echo "  - or pin its fingerprint in .gitleaksignore (see file header)" >&2
+        echo "" >&2
+        exit $GL
+    fi
+else
+    # First-run hint, printed every time the hook runs without gitleaks
+    # installed. Dev keeps committing safely; CI is the backstop.
+    echo "[husky] gitleaks not found on PATH — pre-commit secret scan skipped." >&2
+    echo "[husky] Install for local scanning: https://github.com/gitleaks/gitleaks#installing" >&2
+    echo "[husky] CI runs the same scan on every PR (.github/workflows/ci.yml -> gitleaks)." >&2
+fi
