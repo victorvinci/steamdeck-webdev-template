@@ -140,6 +140,11 @@ jobs:
                       markdown:
                         - '**/*.md'
                         - '.markdownlint-cli2.jsonc'
+                      openapi:
+                        - 'libs/types/**'
+                        - 'apps/backend/src/openapi/**'
+                        - 'apps/backend/openapi.json'
+                        - 'scripts/gen-openapi.ts'
 
     # ---------- quality ----------
 
@@ -282,6 +287,27 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
             - run: bash scripts/lint-migrations.sh
+
+    # OpenAPI drift check — regenerates `apps/backend/openapi.json` from the
+    # Zod schemas in `libs/types` (via `apps/backend/src/openapi/registry.ts`)
+    # and fails if the working tree differs from the committed snapshot. The
+    # snapshot is committed so reviewers see API-shape changes inline in the
+    # PR diff; the gate catches the "edited a schema but forgot to regenerate"
+    # mistake. Gated on the `openapi` paths-filter (libs/types, the registry,
+    # the snapshot itself, the generator script) so PRs that don't touch any
+    # of those skip the job.
+    openapi-drift:
+        name: openapi drift
+        needs: detect
+        if: >-
+            needs.detect.outputs.openapi == 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: ./.github/actions/setup-node-deps
+            - run: npm run gen:openapi:check
 
     # Markdown lint — markdownlint-cli2 over user-facing docs (README,
     # CHANGELOG, docs/, root MD files). Config + ignores live in
@@ -733,6 +759,7 @@ jobs:
             - renovate-config
             - migrations-lint
             - markdown-lint
+            - openapi-drift
         runs-on: ubuntu-latest
         timeout-minutes: 2
         # No `environment:` here — a prior version gated ci-pass behind

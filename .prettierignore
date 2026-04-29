@@ -9,3 +9,8 @@ routeTree.gen.ts
 .todo.txt
 # Append-only log — one JSON object per line, must not be reformatted.
 .ai-attribution.jsonl
+# Generated OpenAPI snapshot. `npm run gen:openapi` is the source of truth
+# for its format; prettier's array-collapse heuristic disagrees with the
+# generator's stable 4-space + sorted-keys output, which would defeat the
+# `gen:openapi:check` drift gate (regen → re-format → diff != 0).
+apps/backend/openapi.json
