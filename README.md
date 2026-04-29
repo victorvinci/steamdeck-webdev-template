@@ -161,6 +161,8 @@ steamdeck-webdev-template/
 ├── lighthouserc.json           # Lighthouse CI assertions (weekly scheduled run)
 ├── commitlint.config.js        # Conventional Commits enforcement
 ├── .markdownlint-cli2.jsonc    # Markdown lint rules (Prettier-aware; user-doc scoped via ignores)
+├── .gitleaks.toml              # gitleaks ruleset (default rules + path allowlist)
+├── .gitleaksignore             # Per-finding fingerprint ignores for gitleaks (currently empty)
 ├── .ai-attribution.jsonl       # Append-only AI provenance log — see CLAUDE.md
 ├── .gitattributes              # LF enforcement, binary markers, generated-file collapse
 ├── .dockerignore               # Keeps Docker build context small for future Dockerfiles
@@ -445,6 +447,7 @@ Runs on every pull request (and on push to `main` / `develop` as the non-affecte
 - `storybook-test` — `@storybook/test-runner` opens every story in headless Chromium and asserts it renders without errors (catches stale prop renames, deleted exports, throw-on-mount regressions that the build alone wouldn't fail on). Downloads the static build from `storybook-build` instead of rebuilding — saves ~1 min per PR.
 - `markdown-lint` — `markdownlint-cli2` over user-facing docs. Gated on a `markdown` paths-filter so PRs without MD changes skip it.
 - `openapi-drift` — runs `npm run gen:openapi:check` (regen → `git diff --exit-code`) so a Zod schema edit that wasn't followed by an `apps/backend/openapi.json` regen fails the build. Gated on an `openapi` paths-filter (`libs/types/`, `apps/backend/src/openapi/`, the snapshot, the generator script).
+- `gitleaks` — secret scan over the full git history of the PR branch. Complements GitHub-native Secret Scanning (which catches known-vendor patterns) by adding a generic-API-key entropy rule + ~150 vendor token formats, and the same scan runs locally in `.husky/pre-commit` so a leak never has to leave the dev machine. Config in `.gitleaks.toml`; per-finding mutes go in `.gitleaksignore`. CI downloads the gitleaks binary directly (checksum-pinned by SHA256) instead of using `gitleaks/gitleaks-action` — the action requires a paid licence for any org-owned repo, even free public ones.
 - `e2e` — Playwright (frontend) + Jest (backend) against a real `mysql:8.4` service container, seeded from `db/schema.sql`
 - `commitlint` — enforces Conventional Commits on the PR title (squash-merge makes the title the final commit)
 - `attribution-guard` — runs on every non-draft PR and enforces two rules. (1) If `apps/` or `libs/` changed, a `CHANGELOG.md` entry is required. (2) If any commit in the PR carries an AI-assistant `Co-Authored-By` trailer (claude, Claude Code, GPT, Gemini, Copilot, Cursor, Devin, Codex, …), the PR must also contain at least one net-new line in `.ai-attribution.jsonl`. Human-only PRs don't need a JSONL append. Automation bots (dependabot, renovate, github-actions) are explicitly excluded from the trailer match
@@ -486,7 +489,7 @@ Deploys the frontend app and Storybook as a static site on every push to `main`:
 
 ### Repo-level security features
 
-- **Secret Scanning** and **Dependabot Alerts** are enabled at the repo level — no workflow file needed.
+- **Secret Scanning** and **Dependabot Alerts** are enabled at the repo level — no workflow file needed. The `gitleaks` CI job (above) layers a generic-entropy rule + ~150 vendor token formats on top of native Secret Scanning's known-pattern catalogue, and the same scan runs locally in `.husky/pre-commit` so leaks fail at commit time, not at push time.
 - **Renovate** is configured in `renovate.json`. Enable it by installing the **Renovate GitHub App** on the repo; dependency updates arrive grouped by ecosystem so you don't drown in PRs.
 
 ### Cache story
@@ -650,7 +653,7 @@ This boilerplate ships with sane defaults, but **security is your responsibility
 - [ ] `trust proxy` is set when running behind a reverse proxy (already wired for `NODE_ENV=production`).
 - [ ] Run `npm audit` before every release. Some transitive dev dependencies (`@module-federation/*`, `jsdom` via `@tootallnate/once`) currently flag CVEs but are **not shipped to production** — they only affect the dev tooling and tests. Verify with `npm ls <package>` if in doubt.
 - [ ] Rotate `DB_PASSWORD` and any other secrets on a schedule.
-- [ ] Never commit `.env`. It is gitignored — keep it that way.
+- [ ] Never commit `.env`. It is gitignored — keep it that way. The `.husky/pre-commit` hook + `gitleaks` CI job will catch most accidental secret commits, but they're a backstop, not a substitute for not staging the file in the first place.
 
 If you discover a vulnerability in this boilerplate, please **do not** open a public issue — report it privately per [`SECURITY.md`](./SECURITY.md) (GitHub's Private vulnerability reporting, under `Security → Advisories → Report a vulnerability`).
 
