@@ -309,6 +309,58 @@ jobs:
             - uses: ./.github/actions/setup-node-deps
             - run: npm run gen:openapi:check
 
+    # Secret scanning via gitleaks. GitHub-native Secret Scanning (repo
+    # setting) catches known-vendor patterns; gitleaks complements it by
+    # detecting generic high-entropy strings via its `generic-api-key` rule
+    # plus ~150 vendor-specific token formats — and runs locally in the
+    # `.husky/pre-commit` hook so a leak never has to leave the dev machine.
+    #
+    # Implementation: download the gitleaks binary directly (checksum-pinned)
+    # rather than use `gitleaks/gitleaks-action`. Reasons:
+    #   - The action requires `GITLEAKS_LICENSE` for ANY repo owned by an
+    #     organisation, even free public ones. Forks owned by GitHub orgs
+    #     would hit a paywall on first PR with no useful escape hatch.
+    #   - The action wraps the binary anyway; running the binary directly
+    #     is one less moving part.
+    #   - Binary checksum-pinning is on par with action SHA-pinning for the
+    #     supply-chain story (Renovate's customManager regex bumps it).
+    #
+    # No paths-filter: secrets can leak in any file (docs, configs, code),
+    # so this runs on every non-draft PR. Cheap (~1s on this repo).
+    gitleaks-detect:
+        name: gitleaks
+        needs: detect
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        env:
+            GITLEAKS_VERSION: '8.21.2'
+            GITLEAKS_SHA256: '5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba'
+        steps:
+            # Full history (`fetch-depth: 0`) so `gitleaks git` can walk every
+            # commit on the branch — the same scope a leak-review would do
+            # by hand. Without this, gitleaks only sees the shallow checkout
+            # (default 1 commit) and misses anything older than HEAD~1.
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  fetch-depth: 0
+            - name: Download gitleaks binary (checksum-pinned)
+              run: |
+                  set -euo pipefail
+                  TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+                  URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${TARBALL}"
+                  curl -sSL --fail -o "$TARBALL" "$URL"
+                  echo "${GITLEAKS_SHA256}  ${TARBALL}" | sha256sum -c -
+                  tar -xzf "$TARBALL" gitleaks
+                  ./gitleaks version
+            - name: Scan repository
+              # `git` mode walks the commit history; `--redact` keeps secrets
+              # out of CI logs even when a finding fires; `--exit-code 1`
+              # makes the job fail on any non-allowlisted finding (hard gate).
+              # Config + allowlist live in `.gitleaks.toml`; per-finding
+              # mutes go in `.gitleaksignore` (fingerprint format).
+              run: ./gitleaks git --no-banner -v --redact --exit-code 1
+
     # Markdown lint — markdownlint-cli2 over user-facing docs (README,
     # CHANGELOG, docs/, root MD files). Config + ignores live in
     # .markdownlint-cli2.jsonc; agent-tooling stubs (.claude / .opencode /
@@ -760,6 +812,7 @@ jobs:
             - migrations-lint
             - markdown-lint
             - openapi-drift
+            - gitleaks-detect
         runs-on: ubuntu-latest
         timeout-minutes: 2
         # No `environment:` here — a prior version gated ci-pass behind

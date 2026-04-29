@@ -1,0 +1,55 @@
+# Gitleaks config — secrets-scanning rules for steamdeck-webdev-template.
+#
+# Used by:
+#   - The `gitleaks-detect` CI job (.github/workflows/ci.yml) on every PR.
+#   - The `.husky/pre-commit` hook locally, if gitleaks is on PATH.
+#
+# Reference: https://github.com/gitleaks/gitleaks#configuration
+#
+# Tuning policy:
+#   - START with `useDefault = true` (gitleaks' shipped ruleset). It catches
+#     ~150 well-known token formats (AWS, GCP, Stripe, Slack, GitHub PAT,
+#     etc.) plus a generic-api-key entropy rule for unknown high-entropy
+#     strings. This baseline scans the repo cleanly today.
+#   - PREFER per-line `# gitleaks:allow` markers over global allowlists.
+#     A line marker tells the next reader why a particular string isn't a
+#     leak; a global glob just makes it disappear.
+#   - When you DO need a global allowlist, scope it as narrowly as possible
+#     (path glob + rule id, or fingerprint in `.gitleaksignore`). A blanket
+#     "ignore all of apps/" hides real leaks alongside the false positives.
+#   - The fingerprint format in `.gitleaksignore` is the safest mute: it
+#     pins to the exact (file, rule, line) tuple, so an unrelated leak in
+#     the same file is still caught.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for paths that are checked-in but contain sample/placeholder values."
+
+paths = [
+    # Lockfile noise — npm pins resolve URLs, hashes, and integrity values
+    # that aren't secrets but occasionally trip the high-entropy rule.
+    '''package-lock\.json$''',
+
+    # gitleaks' own metadata files. Patterns inside .gitleaks.toml itself
+    # would otherwise self-flag against the ruleset they declare.
+    '''\.gitleaks\.toml$''',
+    '''\.gitleaksignore$''',
+
+    # Snapshot artefacts. The committed OpenAPI spec is generated from
+    # libs/types Zod schemas — if `gen:openapi` ever emits something
+    # high-entropy (UUIDs, sample tokens) the source schemas are the
+    # right place to inspect, not the snapshot.
+    '''apps/backend/openapi\.json$''',
+
+    # Storybook static build output (only relevant if a fork commits it
+    # accidentally; `dist/` is gitignored but `storybook-static/` could
+    # conceivably get added in CI debugging — kept here as a cheap hedge).
+    '''storybook-static/''',
+
+    # Steam Deck host helpers ship with their own CHANGELOG / READMEs and
+    # version separately from the web template. Out of scope for this
+    # repo's secret-scan policy — see scripts/steamdeck/CHANGELOG.md.
+    '''scripts/steamdeck/''',
+]
