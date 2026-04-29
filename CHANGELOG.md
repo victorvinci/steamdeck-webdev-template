@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-29
+
 ### Fixed
 
 - **Fixed** OSSF Scorecard CI failure on the `0.4.0` release push: `Scorecard analysis: Only the default branch develop is supported`. `.github/workflows/scorecard.yml` triggered on `push: branches: [main]`, but Scorecard only supports analysing the repo's **default branch** — and this repo's default is `develop` (release model is `develop → main` per `docs/RELEASE.md`). Switched the trigger to `push: branches: [develop]` so the workflow runs after every merge into the integration branch. README's Supply-chain section updated accordingly. The `branch_protection_rule`, `schedule`, and `workflow_dispatch` triggers were already correct (they implicitly target the default branch).
