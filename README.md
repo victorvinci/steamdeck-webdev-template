@@ -651,7 +651,7 @@ This boilerplate ships with sane defaults, but **security is your responsibility
 - [ ] **No authentication is included.** Add a real auth layer before exposing protected data. Recommended: short-lived JWTs with refresh tokens, or signed sessions stored in Redis.
 - [ ] HTTPS is enforced at your edge (load balancer / CDN).
 - [ ] `trust proxy` is set when running behind a reverse proxy (already wired for `NODE_ENV=production`).
-- [ ] Run `npm audit` before every release. Some transitive dev dependencies (`@module-federation/*`, `jsdom` via `@tootallnate/once`) currently flag CVEs but are **not shipped to production** — they only affect the dev tooling and tests. Verify with `npm ls <package>` if in doubt.
+- [ ] Run `npm audit` before every release. Some transitive dev dependencies (`@module-federation/*`, `jsdom` via `@tootallnate/once`, `uuid<14` via `@storybook/test-runner` → `jest-junit` / `nyc`) currently flag CVEs but are **not shipped to production** — they only affect the dev tooling and tests. The `uuid` chain in particular cannot be force-overridden because `uuid@8 → uuid@14` is a major API break that would crash `jest-junit` / `nyc`; it'll resolve when `@storybook/test-runner` bumps its deps. `postcss<8.5.10` is already pinned via `package.json` `overrides` to a patched version. Verify with `npm ls <package>` if in doubt.
 - [ ] Rotate `DB_PASSWORD` and any other secrets on a schedule.
 - [ ] Never commit `.env`. It is gitignored — keep it that way. The `.husky/pre-commit` hook + `gitleaks` CI job will catch most accidental secret commits, but they're a backstop, not a substitute for not staging the file in the first place.
 
