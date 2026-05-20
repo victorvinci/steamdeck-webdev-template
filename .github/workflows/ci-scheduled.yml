@@ -967,13 +967,22 @@ jobs:
               # which the JSON reporter respects when `outputFile` isn't
               # set in playwright.config. Continue across failures so we
               # see the WHOLE distribution — not just the first red run.
+              #
+              # --skip-nx-cache is LOAD-BEARING here: without it the 2nd and
+              # 3rd iterations (and even the 1st, off Nx Cloud remote cache)
+              # are served as cache replays. A replay reprints cached stdout
+              # but never re-launches Playwright, so PLAYWRIGHT_JSON_OUTPUT_NAME
+              # is never written and flake-reports/ stays empty — the Aggregate
+              # step then fails with "No flake-reports/*.json". Flake detection
+              # is the one job that MUST actually re-run the suite every time;
+              # caching defeats its entire purpose.
               run: |
                   set -uo pipefail
                   mkdir -p flake-reports
                   for i in $(seq 1 "$FLAKE_RUN_COUNT"); do
                       echo "::group::Run $i / $FLAKE_RUN_COUNT"
                       PLAYWRIGHT_JSON_OUTPUT_NAME="$PWD/flake-reports/run-$i.json" \
-                          npx nx e2e frontend-e2e -- --reporter=json --workers=1 || true
+                          npx nx e2e frontend-e2e --skip-nx-cache -- --reporter=json --workers=1 || true
                       echo "::endgroup::"
                   done
                   ls -la flake-reports
