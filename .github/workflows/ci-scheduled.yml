@@ -945,7 +945,13 @@ jobs:
               # `--with-deps` pulls the OS packages Playwright needs.
               # ubuntu-latest already has most of them but the command
               # is idempotent and cheap when nothing's missing.
-              run: npx playwright install --with-deps firefox chromium
+              # Must cover ALL projects in playwright.config.ts (chromium,
+              # firefox, webkit). The per-PR e2e runs in the Playwright
+              # GHCR container which ships every browser; this host-runner
+              # job has to install them explicitly. Omitting webkit made it
+              # fail to launch on every run, which the cross-browser
+              # aggregator below mislabelled as 5 "flaky" tests.
+              run: npx playwright install --with-deps firefox chromium webkit
 
             - name: Install mysql-client
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mysql-client
