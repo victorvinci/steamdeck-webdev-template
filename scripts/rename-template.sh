@@ -133,52 +133,62 @@ echo "    npm-scope        = @$NPM_SCOPE"
 echo "    maintainer-email = $MAINTAINER_EMAIL"
 echo
 
-# ORDER MATTERS: the maintainer email contains 'victorvinci' as its local
-# part, so substitute the email first — otherwise the owner sweep later
-# rewrites the local part and produces a broken address.
-echo "==> 1/4  maintainer email"
-inplace_sed "s|victorvinci@protonmail.com|${MAINTAINER_EMAIL}|g" \
-    CODE_OF_CONDUCT.md \
-    .github/workflows/ci-scheduled.yml
+# Files that legitimately RETAIN template strings — never rewritten. This
+# mirrors the EXCLUDE in scan-template-residuals.sh EXACTLY: this script and
+# the scanner both hold the strings as literal search patterns, docs/FORK.md
+# + docs/UPGRADE.md document the rename mapping, and CHANGELOG / the
+# attribution log are point-in-time history. Keeping the two exclude sets
+# byte-identical IS the invariant — the rename rewrites precisely the files
+# (and strings) the residual scanner checks, so neither can drift from the
+# other. If you edit this regex, edit the scanner's to match.
+TEMPLATE_EXCLUDE='^(CHANGELOG\.md|\.ai-attribution\.jsonl|docs/SECURITY-AUDIT-v1\.0\.0|scripts/rename-template\.sh|scripts/scan-template-residuals\.sh|docs/FORK\.md|docs/UPGRADE\.md)'
 
-echo "==> 2/4  npm scope (@mcb -> @${NPM_SCOPE})"
-inplace_sed "s|@mcb/|@${NPM_SCOPE}/|g" \
-    tsconfig.base.json \
-    apps/backend/src/services/users.service.ts \
-    apps/backend/src/routes/health.ts \
-    apps/backend/src/routes/users.ts \
-    apps/frontend/src/components/UsersList.spec.tsx \
-    apps/frontend/src/components/UsersList.tsx \
-    apps/frontend/src/routes/users.tsx \
-    apps/frontend/src/lib/api/users.ts \
-    libs/types/README.md \
-    libs/utils/README.md \
-    README.md \
-    .github/workflows/ci-scheduled.yml
+# Rewrite every occurrence of a fixed literal across all tracked files,
+# discovered dynamically via `git grep` rather than a hand-curated per-pass
+# list. The old lists drifted silently whenever a new file adopted a template
+# identifier: the OpenAPI module (registry.ts importing @mcb/types,
+# openapi.json's API title) and the gitleaks files were added after the lists
+# were last curated, so a renamed fork failed `npm run check` (TS2307 on the
+# unrewritten @mcb/types import) and then the residual scan. git grep keeps
+# every pass in lockstep with the repo automatically.
+#
+# Array-less for bash 3.2 (see header); word-splitting on the file list is
+# safe because tracked paths in this repo contain no spaces or newlines.
+# `git grep -lF` is a fixed-string search for DISCOVERY only — the sed itself
+# is unchanged from the original (regex `s|literal|replacement|g`, same
+# literals and `|` delimiter, none of which contain `|`). `|| true` keeps
+# `set -e`/pipefail from aborting when a literal matches nothing.
+rename_token() {
+    local literal="$1" replacement="$2" files
+    files=$(git grep -lF "$literal" | grep -vE "$TEMPLATE_EXCLUDE" || true)
+    if [ -n "$files" ]; then
+        echo "    $(printf '%s\n' "$files" | grep -c .) file(s)"
+        # shellcheck disable=SC2086
+        inplace_sed "s|${literal}|${replacement}|g" $files
+    else
+        echo "    (no files reference '${literal}')"
+    fi
+}
+
+# ORDER MATTERS: the maintainer email contains 'victorvinci' as its local
+# part, so substitute the whole email FIRST — otherwise the owner pass below
+# rewrites the local part and produces a broken address. Both passes are now
+# dynamic, so an email in ANY file (not just a curated few) is caught before
+# the owner pass runs.
+echo "==> 1/4  maintainer email (victorvinci@protonmail.com -> ${MAINTAINER_EMAIL})"
+rename_token 'victorvinci@protonmail.com' "${MAINTAINER_EMAIL}"
+
+echo "==> 2/4  npm scope (@mcb/ -> @${NPM_SCOPE}/)"
+rename_token '@mcb/' "@${NPM_SCOPE}/"
 
 echo "==> 3/4  project name (steamdeck-webdev-template -> ${PROJECT_NAME})"
-# package-lock.json holds the project name at the root and at the empty-key
-# workspace entry under `packages`. Rewriting it here keeps package.json and
-# the lockfile in sync, so `git add -A && git commit` immediately after the
-# rename doesn't land a mismatched pair on develop.
-inplace_sed "s|steamdeck-webdev-template|${PROJECT_NAME}|g" \
-    package.json \
-    package-lock.json \
-    .github/workflows/ci.yml \
-    .github/workflows/ci-scheduled.yml \
-    docs/RELEASE.md \
-    README.md \
-    CONTRIBUTING.md \
-    CLAUDE.md \
-    .devcontainer/devcontainer.json
+# git grep finds package-lock.json automatically (the project name lives at
+# the root and the empty-key workspace entry), so package.json and the
+# lockfile stay in sync without naming either explicitly.
+rename_token 'steamdeck-webdev-template' "${PROJECT_NAME}"
 
 echo "==> 4/4  github owner (victorvinci -> ${GITHUB_OWNER})"
-inplace_sed "s|victorvinci|${GITHUB_OWNER}|g" \
-    package.json \
-    .github/CODEOWNERS.txt \
-    .github/workflows/ci-scheduled.yml \
-    README.md \
-    CONTRIBUTING.md
+rename_token 'victorvinci' "${GITHUB_OWNER}"
 
 if [ "$SKIP_CHECK" = "yes" ]; then
     echo
