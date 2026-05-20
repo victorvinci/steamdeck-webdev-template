@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Security** bumped `axios` to `1.16.1` in `package.json`/`package-lock.json` and upgraded the whole `nx` toolchain `22.6.5 → 22.7.2` (`nx` + all `@nx/*` packages) to clear 10 open Dependabot axios advisories (3 high / 6 medium / 1 low; vulnerable range `>= 1.0.0, < 1.15.2`). The app-facing copy used by `apps/frontend/src/lib/api.ts` was the direct dependency, but the copy Dependabot kept flagging was a transitive one pinned **exactly** to `1.15.0` by `nx@22.6.5` (`node_modules/nx` → `"axios": "1.15.0"`), so a root bump alone couldn't evict it. `nx@22.7.2` ships axios `1.16.0`, so moving the toolchain forward replaces the nested vulnerable copy with a patched one — no `overrides` hack needed. nx's `migrate` runner also added `.nx/self-healing` to `.gitignore`. Note: the original Dependabot run that surfaced this (security update #1320794082, 2026-04-13) failed with `NpmAndYarn::FileUpdater::NoChangeError` reported as `unknown_error` — at that time the repo already satisfied the only-then-known advisory (patched in `1.15.0`), so the updater had nothing to write; the newer `1.15.1`/`1.15.2` advisories are what made an actual bump necessary. Together with the `axios` and `fast-uri` bumps in this batch, this closes the two high-severity prod-dep findings tracked in issue #74.
+- **Security** bumped `fast-uri` `3.1.0 → 3.1.2` (lockfile-only) to clear two high-severity advisories — GHSA-q3j6-qgpj-74h6 (path traversal via percent-encoded dot segments) and GHSA-v39h-62p7-jpjc (host confusion via percent-encoded authority delimiters). `fast-uri` is a transitive prod dependency via `@tanstack/router-plugin → webpack → schema-utils → ajv` (`fast-uri: ^3.0.1`); 3.1.2 is in-range so no parent bump was needed.
+
+### Fixed
+
+- **Fixed** the `e2e-flake-detect` job in `.github/workflows/ci-scheduled.yml` only installed `firefox chromium`, but `apps/frontend-e2e/playwright.config.ts` defines three projects (chromium, firefox, **webkit**) and the flake run applies no `--project` filter. WebKit therefore failed to launch on every run, and the cross-browser aggregator (which keys on test title across all projects) mislabelled those deterministic launch failures as 5 "flaky" tests — each showing the tell-tale identical `6/9 passed, 3/9 failed` split (2 working browsers × 3 runs vs. 1 missing browser × 3 runs). Added `webkit` to the install line so the host-runner job matches the browser set the per-PR e2e already runs (it executes in the `mcr.microsoft.com/playwright` GHCR container, which ships all three). Resolves the false positives in issue #73.
+
 ## [0.4.1] - 2026-04-29
 
 ### Fixed
