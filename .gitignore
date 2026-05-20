@@ -61,3 +61,4 @@ apps/frontend/src/routeTree.gen.ts
 .cursor/
 .opencode/
 opencode.json
+.nx/self-healing

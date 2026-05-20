@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Security** bumped `axios` to `1.16.1` in `package.json`/`package-lock.json` and upgraded the whole `nx` toolchain `22.6.5 → 22.7.2` (`nx` + all `@nx/*` packages) to clear 10 open Dependabot axios advisories (3 high / 6 medium / 1 low; vulnerable range `>= 1.0.0, < 1.15.2`). The app-facing copy used by `apps/frontend/src/lib/api.ts` was the direct dependency, but the copy Dependabot kept flagging was a transitive one pinned **exactly** to `1.15.0` by `nx@22.6.5` (`node_modules/nx` → `"axios": "1.15.0"`), so a root bump alone couldn't evict it. `nx@22.7.2` ships axios `1.16.0`, so moving the toolchain forward replaces the nested vulnerable copy with a patched one — no `overrides` hack needed. nx's `migrate` runner also added `.nx/self-healing` to `.gitignore`. Note: the original Dependabot run that surfaced this (security update #1320794082, 2026-04-13) failed with `NpmAndYarn::FileUpdater::NoChangeError` reported as `unknown_error` — at that time the repo already satisfied the only-then-known advisory (patched in `1.15.0`), so the updater had nothing to write; the newer `1.15.1`/`1.15.2` advisories are what made an actual bump necessary.
+
 ## [0.4.1] - 2026-04-29
 
 ### Fixed
