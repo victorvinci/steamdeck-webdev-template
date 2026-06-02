@@ -4,11 +4,7 @@
 
 If you believe you've found a security vulnerability in this project, please **do not** open a public issue. Report it privately so a fix can be prepared before the details are public.
 
-- **Private report (preferred):** open a private advisory directly at
-  https://github.com/victorvinci/steamdeck-webdev-template/security/advisories/new
-  (GitHub's **Private vulnerability reporting**: `Security → Advisories →
-Report a vulnerability`). Enable it under `Settings → Code security →
-Private vulnerability reporting` if it's not already on.
+- **Private report (preferred):** open a private advisory directly via [GitHub's private vulnerability reporting](https://github.com/victorvinci/steamdeck-webdev-template/security/advisories/new) (`Security → Advisories → Report a vulnerability`). Enable it under `Settings → Code security → Private vulnerability reporting` if it's not already on.
 - **Expected response time:** the maintainer aims to acknowledge within 72 hours.
 
 Please include:
