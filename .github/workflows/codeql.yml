@@ -28,6 +28,13 @@ on:
     # anything that sneaks in via direct push.
     workflow_dispatch:
 
+# Default to read-only at the workflow level; the analyze job re-grants the
+# narrow writes it actually needs (security-events for SARIF upload). Without
+# this top-level declaration GitHub hands the token its default scopes, which
+# OpenSSF Scorecard's Token-Permissions check (rightly) flags.
+permissions:
+    contents: read
+
 # Cancel in-progress runs when new commits land on the same ref — two rapid
 # pushes to main otherwise queue two expensive CodeQL runs back-to-back.
 concurrency:

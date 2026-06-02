@@ -643,8 +643,12 @@ jobs:
                   # line; we reuse it as the GHCR tag with a `-mysql`
                   # suffix. This keeps the tag in lock-step with the
                   # Dockerfile FROM (which Renovate auto-bumps).
+                  # The FROM is pinned by digest (`:tag@sha256:...`), so
+                  # capture only up to the `@` — a Docker tag may not
+                  # contain a digest, and `${BASE_TAG}-mysql` would
+                  # otherwise be an invalid reference.
                   BASE_TAG=$(grep -E '^FROM mcr\.microsoft\.com/playwright:' .github/docker/playwright-e2e.Dockerfile \
-                      | sed -E 's|.*playwright:([^[:space:]]+).*|\1|')
+                      | sed -E 's|.*playwright:([^@[:space:]]+).*|\1|')
                   if [ -z "$BASE_TAG" ]; then
                       echo "Could not parse Playwright FROM tag from Dockerfile." >&2
                       exit 1
