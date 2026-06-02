@@ -11,9 +11,15 @@
 # the `e2e` job consumes the resulting tag.
 #
 # Version bumps: Renovate's built-in Docker manager watches the FROM
-# line, so the Playwright image bumps automatically. The `-mysql` tag
-# suffix is appended by the publish job, not by Renovate.
-FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+# line, so the Playwright image bumps automatically — it updates both the
+# tag and the digest pin below in lockstep. The `-mysql` tag suffix is
+# appended by the publish job, not by Renovate.
+#
+# Pinned by digest (not just tag) so the build is reproducible and OpenSSF
+# Scorecard's Pinned-Dependencies check is satisfied. The human-readable
+# tag is kept alongside the digest so Renovate knows which version line to
+# track.
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy@sha256:8a0360d39d1973be506dd59002904a774f6d697d4946c94063b3fd006461c8ff
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
