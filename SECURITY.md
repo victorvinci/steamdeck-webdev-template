@@ -4,7 +4,11 @@
 
 If you believe you've found a security vulnerability in this project, please **do not** open a public issue. Report it privately so a fix can be prepared before the details are public.
 
-- **Private report:** use GitHub's **Private vulnerability reporting** on this repository (`Security → Advisories → Report a vulnerability`). Enable it under `Settings → Code security → Private vulnerability reporting` if it's not already on.
+- **Private report (preferred):** open a private advisory directly at
+  https://github.com/victorvinci/steamdeck-webdev-template/security/advisories/new
+  (GitHub's **Private vulnerability reporting**: `Security → Advisories →
+Report a vulnerability`). Enable it under `Settings → Code security →
+Private vulnerability reporting` if it's not already on.
 - **Expected response time:** the maintainer aims to acknowledge within 72 hours.
 
 Please include:
@@ -33,4 +37,4 @@ Only the latest tagged release on `main` receives security fixes. This is a fork
 
 ## Baseline audit
 
-A pre-v1.0.0 security audit was performed on this template; findings and remediation status are recorded in [`docs/SECURITY-AUDIT-v1.0.0.md`](./docs/SECURITY-AUDIT-v1.0.0.md) and [`docs/SECURITY-AUDIT-v1.0.0-ACTIONS.md`](./docs/SECURITY-AUDIT-v1.0.0-ACTIONS.md). Forks inherit those fixes. The audit covered the surfaces the template ships with — backend middleware, CI workflows, MySQL configuration, dependency posture, attribution log integrity. Subsystems forks add later (auth, payments, observability, etc.) are out of the audit's scope and need their own review.
+A pre-v1.0.0 security audit was performed on this template; findings and remediation status are recorded in [`docs/SECURITY-AUDIT-v1.0.0.md`](https://github.com/victorvinci/steamdeck-webdev-template/blob/main/docs/SECURITY-AUDIT-v1.0.0.md) and [`docs/SECURITY-AUDIT-v1.0.0-ACTIONS.md`](https://github.com/victorvinci/steamdeck-webdev-template/blob/main/docs/SECURITY-AUDIT-v1.0.0-ACTIONS.md). Forks inherit those fixes. The audit covered the surfaces the template ships with — backend middleware, CI workflows, MySQL configuration, dependency posture, attribution log integrity. Subsystems forks add later (auth, payments, observability, etc.) are out of the audit's scope and need their own review.
