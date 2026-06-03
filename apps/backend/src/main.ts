@@ -119,14 +119,30 @@ const server = app.listen(env.PORT, env.HOST, (err?: Error) => {
     logger.info(`ready on http://${env.HOST}:${env.PORT}`);
 });
 
+// HTTP timeout hardening. Node's default `keepAliveTimeout` (5s) is SHORTER
+// than the idle timeout of most load balancers (AWS ALB defaults to 60s),
+// which causes intermittent 502s: the LB reuses a keep-alive socket in the
+// brief window after Node has independently decided to close it. The fix is
+// to keep Node's socket open longer than the LB's idle timeout, and to make
+// `headersTimeout` larger than `keepAliveTimeout` so a slow client can't
+// outlast the keep-alive window. 65s/66s clears the common 60s LB default —
+// raise both if your load balancer's idle timeout is higher.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+
 /**
- * Graceful shutdown: on SIGTERM/SIGINT, stop accepting new connections,
- * drain in-flight requests, close the MySQL pool, then exit. Give the
+ * Graceful shutdown: stop accepting new connections, drain in-flight
+ * requests, close the MySQL pool, then exit. Triggered by SIGTERM/SIGINT
+ * (normal orchestrator stop) and by the fatal-error handlers below. Give the
  * platform 10s before forcing termination so a hung request can't block a
- * deploy forever.
+ * deploy forever. The `shuttingDown` guard makes this idempotent — a second
+ * signal, or a fatal error racing a signal, won't double-close the server.
  */
-const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'shutdown: draining');
+let shuttingDown = false;
+const shutdown = async (reason: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ reason }, 'shutdown: draining');
     const forceExit = setTimeout(() => {
         logger.error('shutdown: force exit after 10s');
         process.exit(1);
@@ -148,3 +164,20 @@ const shutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Last-resort handlers for errors that escape request scope. Express 5
+// already forwards errors thrown (or rejected) inside route handlers to
+// `errorHandler`, so these catch the things it can't: a rejected promise with
+// no `.catch`, or a synchronous throw in a timer/event callback. Without
+// them, Node prints a bare V8 stack trace and exits, bypassing pino and the
+// MySQL pool cleanup. An uncaught exception leaves the process in an
+// undefined state, so this is a structured log + graceful drain + exit — NOT
+// a "keep serving" recovery (which would risk acting on corrupt state).
+process.on('unhandledRejection', (reason) => {
+    logger.fatal({ err: reason }, 'unhandledRejection — shutting down');
+    void shutdown('unhandledRejection');
+});
+process.on('uncaughtException', (err) => {
+    logger.fatal({ err }, 'uncaughtException — shutting down');
+    void shutdown('uncaughtException');
+});

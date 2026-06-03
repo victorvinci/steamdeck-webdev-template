@@ -89,7 +89,7 @@ What ships with this template — and, equally important, what doesn't. The poin
 - **Authentication / authorisation.** No login, sessions, JWTs, OAuth, RBAC, or password handling. The `/api/users` demo is unauthenticated by design.
 - **Real domain schema.** `db/migrations/001_initial.sql` provisions a single `users` table for the demo. Replace it with your own schema; the migration runner doesn't care what's in there.
 - **ORM or query builder.** Direct `mysql2` with named placeholders — no Prisma / Drizzle / Knex. Add one if you want; nothing in the template assumes its absence.
-- **Production deployment IaC.** GitHub Pages publishes the frontend (see `pages.yml`) but there's no Terraform / Pulumi / Helm / Docker production image for the backend. The `Production Deployment` section below covers the runtime expectations; the substrate is your call.
+- **Production deployment IaC / orchestration.** GitHub Pages publishes the frontend (see `pages.yml`), and the backend ships a production `Dockerfile` (`apps/backend/Dockerfile` — multi-stage, non-root, healthcheck) so any container platform can run it. What's _not_ shipped is the orchestration substrate: no Terraform / Pulumi / Helm / Kubernetes manifests / production Compose file. The `Production Deployment` section below covers the runtime expectations; where the container runs is your call.
 - **Payments, email, queue, cache.** No Stripe, no SES, no Redis, no BullMQ. Each fork pulls in what it needs.
 - **Feature flags / experiment framework.** No GrowthBook / LaunchDarkly / Unleash wiring.
 - **Observability beyond logs.** Pino prints structured logs with `x-request-id` for stitching, but no APM / tracing / metrics exporter is shipped.
@@ -113,6 +113,7 @@ steamdeck-webdev-template/
 │   │   └── .storybook/         # Storybook config (addon-a11y for accessibility audits)
 │   ├── frontend-e2e/           # Playwright e2e tests
 │   ├── backend/                # Express REST API
+│   │   ├── Dockerfile          # Production image (multi-stage, non-root, healthcheck)
 │   │   ├── openapi.json        # Generated OAS 3.0.3 snapshot — npm run gen:openapi
 │   │   └── src/
 │   │       ├── config/         # env.ts (Zod-validated), db.ts (MySQL pool), logger.ts (Pino)
@@ -612,6 +613,15 @@ Generic checklist — adapt to your platform of choice.
     (Runs format/lint/typecheck/tests first, then builds every project. Drop to `npx nx run-many -t build` if you need to skip the gates.)
 
     Outputs land in `dist/apps/frontend` (static files) and `dist/apps/backend` (Node bundle).
+
+    **Containerized backend (optional):** instead of running the Node bundle directly, build the image from the repo root:
+
+    ```bash
+    docker build -f apps/backend/Dockerfile -t steamdeck-backend .
+    docker run --rm -p 3000:3000 --env-file .env steamdeck-backend
+    ```
+
+    The image is multi-stage (build → slim runtime), runs as the non-root `node` user, installs only production dependencies from the Nx-generated pruned manifest, and declares a `HEALTHCHECK` against `/api/health/live`. It sets `HOST=0.0.0.0` (the app defaults to `localhost`, which is unreachable from outside a container). The frontend stays static — serve it from a CDN per step 6, not from a container.
 
 2. **Set `NODE_ENV=production`.** This switches the error handler to a generic message (no stack traces leaked) and enables `trust proxy` so rate limiting works behind a load balancer.
 
