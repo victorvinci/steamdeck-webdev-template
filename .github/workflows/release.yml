@@ -138,9 +138,39 @@ jobs:
             # cache or mirror, so it's the artifact that actually needs
             # provenance.
             - name: Attest SBOM provenance
+              id: attest
               uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
               with:
                   subject-path: sbom.cdx.json
+
+            # Persist the attestation as a release asset.
+            #
+            # The step above already mints the provenance and stores it in
+            # GitHub's attestation log (queryable via `gh attestation
+            # verify`), but that log lives off to the side — a consumer who
+            # only mirrors the release assets never sees it. Copying the
+            # Sigstore bundle next to the SBOM means the signed provenance
+            # travels WITH the artifact, and OpenSSF Scorecard's
+            # Signed-Releases check (which scans release assets for a
+            # signature file) can see it too.
+            #
+            # Named `.sigstore.json` because that is what the bundle
+            # actually is — a Sigstore bundle wrapping the DSSE/in-toto
+            # statement. Scorecard awards partial credit for a signature
+            # asset; full credit additionally wants a `*.intoto.jsonl` SLSA
+            # provenance file, which would mean adopting the SLSA generator
+            # reusable workflow. That uploads assets to the release itself,
+            # which collides with the Immutable-releases draft→publish dance
+            # below, so it is deferred to its own change that can be
+            # validated against a throwaway test release. We do NOT rename
+            # this bundle to `.intoto.jsonl` to game the check — Scorecard
+            # matches on filename only, and a mislabelled asset would lie to
+            # anyone who tried to actually consume it.
+            - name: Stage attestation bundle as a release asset
+              run: |
+                  set -euo pipefail
+                  cp "${{ steps.attest.outputs.bundle-path }}" sbom.cdx.json.sigstore.json
+                  echo "Staged $(wc -c < sbom.cdx.json.sigstore.json) bytes of provenance bundle."
 
             # GitHub's "Immutable releases" repo setting locks a release
             # the moment it's published — no asset uploads after that
@@ -159,7 +189,9 @@ jobs:
                   # GitHub to diff against the previous tag.
                   body_path: ${{ steps.notes.outputs.found == 'true' && 'NOTES.md' || '' }}
                   generate_release_notes: ${{ steps.notes.outputs.found != 'true' }}
-                  files: sbom.cdx.json
+                  files: |
+                      sbom.cdx.json
+                      sbom.cdx.json.sigstore.json
                   # The tag already exists (this workflow fires on tag
                   # push), so don't let the action try to re-create or
                   # move it.
