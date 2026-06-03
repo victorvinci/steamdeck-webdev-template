@@ -17,11 +17,11 @@ feature/* ──▶ develop ──▶ main ──▶ tag X.Y.Z
 
 Summary of what's enforced; see the GitHub repo rulesets page for the authoritative source.
 
-| Ruleset        | Target               | Approvals | Merge method | Other                                                                    |
-| -------------- | -------------------- | --------- | ------------ | ------------------------------------------------------------------------ |
-| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, signed commits, `ci pass` required                       |
-| `main`         | `refs/heads/main`    | 1         | rebase       | signed commits, CODEOWNERS, `require_last_push_approval`, `update` block |
-| `release-tags` | `refs/tags/[0-9]*`   | —         | —            | block delete, update, non-fast-forward                                   |
+| Ruleset        | Target               | Approvals | Merge method | Other                                                                                           |
+| -------------- | -------------------- | --------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `develop`      | `refs/heads/develop` | 0         | squash       | linear history, signed commits, `ci pass` required                                              |
+| `main`         | `refs/heads/main`    | 1         | rebase       | signed commits, CODEOWNERS, `require_last_push_approval`, dismiss stale reviews, `update` block |
+| `release-tags` | `refs/tags/[0-9]*`   | —         | —            | block delete, update, non-fast-forward                                                          |
 
 The `Convert PR to Draft` workflow still runs on freshly opened PRs (saving CI minutes until the author marks ready), but is **not** a required status check — it's a one-shot side-effect on `opened`, so making it a gate would leave new commits blocked by an unsatisfiable pending check.
 
@@ -151,7 +151,7 @@ git push origin X.Y.Z
 
 The `release-tags` ruleset activates on push — from now on the tag can't be deleted or moved without admin bypass.
 
-The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, mints a SLSA build-provenance attestation for that SBOM via `actions/attest-build-provenance`, and publishes the release with the SBOM attached as an asset. No manual `gh release create` needed.
+The tag push triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml), which creates the GitHub Release automatically: it extracts the `## [X.Y.Z]` section from `CHANGELOG.md` via `scripts/extract-changelog-section.sh`, generates a CycloneDX SBOM, mints a SLSA build-provenance attestation for that SBOM via `actions/attest-build-provenance`, and publishes the release with two assets — `sbom.cdx.json` and the attestation bundle `sbom.cdx.json.sigstore.json`. No manual `gh release create` needed.
 
 Consumers who want to verify the SBOM came from this repo's release pipeline (and not, say, a tampered mirror) can run:
 
@@ -159,7 +159,7 @@ Consumers who want to verify the SBOM came from this repo's release pipeline (an
 gh attestation verify sbom.cdx.json --repo <owner>/<repo>
 ```
 
-The attestation is keyed to the workflow's OIDC identity, so it proves the SBOM was produced by `.github/workflows/release.yml` running against a tag on `main` — anyone who tampers with the SBOM after the fact will fail the verify.
+The attestation is keyed to the workflow's OIDC identity, so it proves the SBOM was produced by `.github/workflows/release.yml` running against a tag on `main` — anyone who tampers with the SBOM after the fact will fail the verify. The same attestation is attached to the release as `sbom.cdx.json.sigstore.json`, so it travels with mirrored assets (and lets OpenSSF Scorecard's Signed-Releases check see a signature) even for consumers who don't query GitHub's attestation store.
 
 If the workflow fails (e.g. the CHANGELOG wasn't promoted before tagging and the fallback to auto-generated notes isn't what you want), you can re-run it from the Actions tab or publish manually:
 

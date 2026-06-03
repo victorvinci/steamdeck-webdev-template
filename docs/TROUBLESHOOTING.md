@@ -138,6 +138,25 @@ if (head) console.log(head.toUpperCase());
 
 ---
 
+## `npm install` fails with `ERESOLVE` peer conflict after bumping Nx
+
+**Symptom.** You ran `npx nx migrate nx@<newer>` (or bumped the `@nx/*` versions in `package.json` by hand), then `npm install` aborts with `ERESOLVE could not resolve` / `Conflicting peer dependency: @nx/<something>` — often naming `@nx/eslint`, `@nx/jest`, `@nx/cypress`, or `@nx/module-federation`.
+
+**Cause.** Two things compound. (1) Nx's internal packages pin each other with **exact** peer/dependency versions, which npm's strict resolver refuses to reconcile against a lockfile that still has the old version pinned. (2) `nx migrate` only bumps the `@nx/*` packages you list **directly** in `package.json` — the transitive ones it doesn't (`@nx/cypress`, `@nx/docker`, `@nx/module-federation`, `@nx/rollup`, `@nx/workspace`) stay on the old version and drag a conflicting subtree.
+
+**Fix.** Keep the change Nx-scoped and let npm relax the peer check it can't satisfy:
+
+```bash
+# package.json already has the new @nx/* + nx versions (from nx migrate)
+npm install --legacy-peer-deps
+```
+
+`--legacy-peer-deps` only affects **lockfile generation** — `npm ci` (what CI runs) installs the resulting lockfile without re-resolving peers, so CI is unaffected (verify locally with `npm ci`, which should exit 0). If the transitive `@nx/*` packages above are still on the old version afterward, name them explicitly in the install so they move in lockstep.
+
+**Do _not_ "fix" this by deleting `package-lock.json` and reinstalling from scratch.** A full regen re-resolves the _entire_ tree and surfaces an unrelated latent peer conflict in the Storybook stack (`@storybook/addon-a11y` wanting a newer `storybook` core than the one pinned), turning a scoped Nx bump into a much larger, riskier change. Keep the existing lockfile and let the targeted install update only the Nx subtree.
+
+---
+
 ## Got something not on this list?
 
 Open an issue with the symptom, your platform, and the failing command's full output. If you find the fix yourself, a PR appending an entry here is even better — the format is **Symptom → Cause → Fix**, no fluff.

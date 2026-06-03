@@ -11,15 +11,15 @@ name: CodeQL
 on:
     pull_request:
         branches: [main, develop]
-        # CodeQL is expensive; skip docs-only PRs.
-        paths-ignore:
-            - '**.md'
-            - 'LICENSE'
-            - '.gitignore'
-            - '.editorconfig'
-            - '.vscode/**'
-            - 'docs/**'
-            - '.ai-attribution.jsonl'
+        # No `paths-ignore` here, on purpose. CodeQL is a *required* check
+        # via the `code_scanning` rule on the develop/main rulesets, and
+        # that rule waits for CodeQL **results** before a merge is allowed.
+        # A path filter that skips the workflow on a docs-only PR means no
+        # results are ever uploaded, so the PR deadlocks forever on "Code
+        # scanning is waiting for results from CodeQL" — only an admin
+        # bypass can land it. `ci.yml` dropped its PR `paths-ignore` for
+        # exactly this reason (see its header). The price is CodeQL running
+        # on docs-only PRs too (~2-3 min); the deadlock is worse.
     schedule:
         - cron: '17 6 * * 1' # weekly, Monday early morning
     # No push trigger. In a PR-based workflow CodeQL has already run on the PR

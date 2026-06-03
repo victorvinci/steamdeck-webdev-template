@@ -81,7 +81,7 @@ What ships with this template — and, equally important, what doesn't. The poin
 - Shared `libs/types` (Zod schemas + inferred TS types — single source of truth across both apps) and `libs/utils` (dependency-free helpers).
 - MySQL 8 dev DB via Docker Compose (with a `dev-setup-native.sh` fallback for hosts without Docker), numbered SQL migrations under `db/migrations/`, transaction-wrapped migration runner.
 - Demo `/api/users` route end-to-end: Zod schema → service layer → MySQL pool → React Query hook → component → Storybook + Playwright + Jest + Vitest coverage.
-- Release flow: `develop → main → tag` with bump / release / hotfix / hotfix-sync PR templates, signed-commit branch rulesets, `release.yml` SBOM + GitHub Release publication, fork-rename script (`scripts/rename-template.sh`) + onboarding doc (`docs/FORK.md`).
+- Release flow: `develop → main → tag` with bump / release / hotfix / hotfix-sync PR templates, signed-commit branch rulesets, `release.yml` publishing a GitHub Release with a CycloneDX SBOM and its SLSA build-provenance attestation (attached as a `*.sigstore.json` asset and logged to GitHub's attestation store), fork-rename script (`scripts/rename-template.sh`) + onboarding doc (`docs/FORK.md`).
 - AI-assisted development scaffolding: `CLAUDE.md` agent contract, `.ai-attribution.jsonl` audit log, two-commit attribution flow, CI guard validating each new line is parseable JSON.
 
 **Does not ship with — fork concerns:**
@@ -491,6 +491,7 @@ Deploys the frontend app and Storybook as a static site on every push to `main`:
 
 - **Secret Scanning** and **Dependabot Alerts** are enabled at the repo level — no workflow file needed. The `gitleaks` CI job (above) layers a generic-entropy rule + ~150 vendor token formats on top of native Secret Scanning's known-pattern catalogue, and the same scan runs locally in `.husky/pre-commit` so leaks fail at commit time, not at push time.
 - **Renovate** is configured in `renovate.json`. Enable it by installing the **Renovate GitHub App** on the repo; dependency updates arrive grouped by ecosystem so you don't drown in PRs.
+- **Signed release artifacts.** `release.yml` ships a CycloneDX SBOM with each GitHub Release plus its SLSA build-provenance attestation — minted via OIDC by `actions/attest-build-provenance`, logged to GitHub's attestation store, and attached to the release as `sbom.cdx.json.sigstore.json` so the signature travels with mirrored assets. Verify with `gh attestation verify sbom.cdx.json --repo <owner>/<repo>`. See [`docs/RELEASE.md`](./docs/RELEASE.md).
 
 ### Cache story
 
@@ -651,7 +652,7 @@ This boilerplate ships with sane defaults, but **security is your responsibility
 - [ ] **No authentication is included.** Add a real auth layer before exposing protected data. Recommended: short-lived JWTs with refresh tokens, or signed sessions stored in Redis.
 - [ ] HTTPS is enforced at your edge (load balancer / CDN).
 - [ ] `trust proxy` is set when running behind a reverse proxy (already wired for `NODE_ENV=production`).
-- [ ] Run `npm audit` before every release. Some transitive dev dependencies (`@module-federation/*`, `jsdom` via `@tootallnate/once`, `uuid<14` via `@storybook/test-runner` → `jest-junit` / `nyc`) currently flag CVEs but are **not shipped to production** — they only affect the dev tooling and tests. The `uuid` chain in particular cannot be force-overridden because `uuid@8 → uuid@14` is a major API break that would crash `jest-junit` / `nyc`; it'll resolve when `@storybook/test-runner` bumps its deps. `postcss<8.5.10` is already pinned via `package.json` `overrides` to a patched version. Verify with `npm ls <package>` if in doubt.
+- [ ] Run `npm audit` before every release. The remaining advisories (currently ~17, all **moderate**, 0 high / 0 critical) are transitive **dev/build-only** dependencies — the `@nx/module-federation` / `@nx/react` subtree (nested `express` / `qs` / `body-parser` / `ws`) and the `@storybook/test-runner` subtree (`uuid` / `nyc` / `jest-junit` / `istanbul`). They are **not shipped to production**; the production `express` stack already runs patched versions (`express@5`, `body-parser@2`, `qs@6.14+`). These can't be force-fixed because `npm audit`'s only offered "fixes" are regressive downgrades (`@nx/react@20.x`, `@storybook/test-runner@0.23`) that would undo the nx 22.7.x bump — they'll clear when nx / Storybook bump their own nested deps (Renovate will pick them up). Three transitive packages **are** pinned to patched versions via `package.json` `overrides`: `postcss` (`^8.5.10`), `@babel/plugin-transform-modules-systemjs` (`^7.29.7`, arbitrary-code-gen advisory), and `ip-address` (`^10.2.0`, the only one that touched the prod runtime — via `express-rate-limit`). Verify with `npm ls <package>` if in doubt.
 - [ ] Rotate `DB_PASSWORD` and any other secrets on a schedule.
 - [ ] Never commit `.env`. It is gitignored — keep it that way. The `.husky/pre-commit` hook + `gitleaks` CI job will catch most accidental secret commits, but they're a backstop, not a substitute for not staging the file in the first place.
 
