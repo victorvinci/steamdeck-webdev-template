@@ -82,7 +82,7 @@ What ships with this template — and, equally important, what doesn't. The poin
 - MySQL 8 dev DB via Docker Compose (with a `dev-setup-native.sh` fallback for hosts without Docker), numbered SQL migrations under `db/migrations/`, transaction-wrapped migration runner.
 - Demo `/api/users` route end-to-end: Zod schema → service layer → MySQL pool → React Query hook → component → Storybook + Playwright + Jest + Vitest coverage.
 - Release flow: `develop → main → tag` with bump / release / hotfix / hotfix-sync PR templates, signed-commit branch rulesets, `release.yml` publishing a GitHub Release with a CycloneDX SBOM and its SLSA build-provenance attestation (attached as a `*.sigstore.json` asset and logged to GitHub's attestation store), fork-rename script (`scripts/rename-template.sh`) + onboarding doc (`docs/FORK.md`).
-- AI-assisted development scaffolding: `CLAUDE.md` agent contract, `.ai-attribution.jsonl` audit log, two-commit attribution flow, CI guard validating each new line is parseable JSON.
+- AI-assisted development scaffolding: `CLAUDE.md` agent contract, `.ai-attribution.jsonl` audit log, two-commit attribution flow, CI guard validating each new line is parseable JSON, and Claude Code skills under `.github/skills/` for the repeated workflows (`release`, `add-api-route`, `add-migration`, `nx-upgrade`, `fork-setup`).
 
 **Does not ship with — fork concerns:**
 
