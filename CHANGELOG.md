@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fixed** the `playwright-e2e image (ghcr)` CI job (`.github/workflows/ci.yml`) failing with `permission_denied: write_package` for forks created under the **same owner** as the template. The image was named `ghcr.io/<owner>/playwright-e2e`, so a same-owner fork collided with the template's existing package and was denied write. The name is now repo-scoped to `ghcr.io/<owner>/<repo>/playwright-e2e` (derived from `github.event.repository.name`), so every fork owns its own package with no manual package-access grant. Rename-safe — the repo segment is resolved at runtime, not hard-coded, so `scripts/rename-template.sh` doesn't need to touch it.
+
 ## [1.0.0] - 2026-06-03
 
 First stable release. The template's public surface — the API response envelope, the shared `@mcb/types` Zod schemas, the `develop → main → tag` release and `.ai-attribution.jsonl` attribution workflow, and the Node 24 baseline — is now considered stable under SemVer (see [`docs/SEMVER.md`](./docs/SEMVER.md)). This cut also closes a full OpenSSF Scorecard pass (token-permissions, pinned-dependencies, security-policy, vulnerabilities, signed-releases, branch-protection) and adds backend production-hardening (fatal-error handlers, HTTP keep-alive timeouts, a non-root container image).

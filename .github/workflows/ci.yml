@@ -653,9 +653,14 @@ jobs:
                       echo "Could not parse Playwright FROM tag from Dockerfile." >&2
                       exit 1
                   fi
-                  # Lowercase the owner — GHCR rejects mixed-case names.
+                  # Lowercase owner + repo — GHCR rejects mixed-case names.
+                  # Scope the image under the repo (not just the owner) so that
+                  # multiple forks of this template under the SAME owner don't
+                  # collide on one `ghcr.io/<owner>/playwright-e2e` package —
+                  # each fork owns `ghcr.io/<owner>/<repo>/playwright-e2e`.
                   OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-                  TAG="ghcr.io/${OWNER_LC}/playwright-e2e:${BASE_TAG}-mysql"
+                  REPO_LC="$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
+                  TAG="ghcr.io/${OWNER_LC}/${REPO_LC}/playwright-e2e:${BASE_TAG}-mysql"
                   echo "tag=$TAG" >> "$GITHUB_OUTPUT"
                   echo "Image tag: $TAG"
             - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
